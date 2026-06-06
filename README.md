@@ -352,22 +352,43 @@ ANTHROPIC_API_KEY=sk-ant-... ./recommend.py "fix the bug"            # Claude be
 
 ### C) Dashboard only — standalone, local or on a remote box
 
-**Plain English:** run just the monitor. Because it depends on nothing else, you can host it on
-one machine and have many machines report into it.
+**Plain English:** run just the monitor. It depends on nothing else (no API key, no repo code), so
+you can host it on one machine — e.g. an AWS box — and have many machines report into it.
+
+**Easiest — the installer script.** Copy just the `dashboard/` folder to the host and run
+[`dashboard/install.sh`](dashboard/install.sh). It uses Docker if present, else falls back to a
+Python venv + uvicorn, then health-checks the result:
 
 ```bash
-# On the machine that will HOST the dashboard:
 cd dashboard
-uvicorn collector:app --host 0.0.0.0 --port 8088
-#   or in Docker:  docker build -t iq-dashboard . && docker run -p 8088:8088 iq-dashboard
+./install.sh                                   # local/dev — port 8088, no auth
+IQ_TOKEN=$(openssl rand -hex 24) ./install.sh  # public box — require a token on writes (recommended)
+#   knobs:  PORT=9000  IQ_TZ=America/Toronto  ./install.sh   ·   ./install.sh --no-docker
 ```
+
+**Manual**, if you'd rather not use the script:
+
 ```bash
-# On EACH machine running the CLI / hook / proxy, point reporting at that host:
+cd dashboard
+docker build -t iq-dashboard . && docker run -d -p 8088:8088 -e IQ_TOKEN=secret --restart unless-stopped iq-dashboard
+#   or no Docker:  pip install -r requirements.txt && IQ_TOKEN=secret uvicorn collector:app --host 0.0.0.0 --port 8088
+```
+
+**Then point each reporter at that host** (see *Point the hook at a remote dashboard* above for the
+slash-command / CLI / config-file forms):
+
+```bash
 export INFERENCEIQ_DASHBOARD=http://<collector-host>:8088
+export IQ_TOKEN=secret            # only if you started the collector with IQ_TOKEN — must match
 #   set INFERENCEIQ_DASHBOARD=off to stop reporting entirely
 ```
+
 Every report is tagged with the sender's `host` (and `user`), so the dashboard's **By machine**
 panel breaks savings down per box.
+
+> **Exposing it publicly (AWS):** set `IQ_TOKEN` (gates the write endpoints), put **HTTPS** in front
+> (ALB / CloudFront / Caddy → the collector's port — it speaks plain HTTP), open only 443 in the
+> security group, and keep `IQ_REPORT_TEXT=0`. Note the store is **in-memory** (resets on restart).
 
 ### D) Claude Code hook — automatic, inside a session
 
