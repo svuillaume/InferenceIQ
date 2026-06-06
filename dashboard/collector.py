@@ -736,11 +736,11 @@ async function tick(){
   const fmtDur=s=>s<90?Math.round(s)+'s':s<5400?Math.round(s/60)+'m':s<172800?(s/3600).toFixed(1)+'h':(s/86400).toFixed(1)+'d';
   const liveHead=`<div style="font-size:.74rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">Projected monthly savings · measured from live usage${H('roiLive')}</div>`;
   let liveBody;
-  if(el>=120&&totalUSD>0){
-    const mo=totalUSD*MONTH/el, perDev=mo/Math.max(1,machines), perDay=totalUSD*86400/el;
+  if(el>=120&&totUSD>0){
+    const mo=totUSD*MONTH/el, perDev=mo/Math.max(1,machines), perDay=totUSD*86400/el;
     const toksMo=((d.tokens_saved||0)+(o.out_tokens_saved||0))*MONTH/el;
     liveBody=`<div class="green" style="font-size:3.2rem;font-weight:800;letter-spacing:-.03em;line-height:1.05;margin:6px 0 2px">${usd(mo)} <span style="font-size:1.3rem;color:var(--muted);font-weight:600">/ month</span></div>
-      <div style="font-size:.95rem;color:var(--fg)">extrapolated from <b class="green">${usd(totalUSD)}</b> saved over <b>${fmtDur(el)}</b> of live data across <b>${machines||0}</b> developer${machines===1?'':'s'} · run-rate <b>${usd(perDay)}</b>/day</div>
+      <div style="font-size:.95rem;color:var(--fg)">extrapolated from <b class="green">${usd(totUSD)}</b> saved over <b>${fmtDur(el)}</b> of live data across <b>${machines||0}</b> developer${machines===1?'':'s'} · run-rate <b>${usd(perDay)}</b>/day</div>
       <div class="three" style="margin-top:16px">
         <div class="mini"><div class="t">Per developer / mo</div><div class="b violet">${usd(perDev)}</div><div class="x">${machines||0} reporting now</div></div>
         <div class="mini"><div class="t">Tokens saved / mo</div><div class="b green">${k(toksMo)}</div><div class="x">input + output, projected</div></div>
