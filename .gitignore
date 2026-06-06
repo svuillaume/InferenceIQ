@@ -1,6 +1,8 @@
 # Secrets / local env
 .env
 .env.*
+# but DO track the documented template (no secrets in it):
+!.env.example
 
 # Python
 .venv/

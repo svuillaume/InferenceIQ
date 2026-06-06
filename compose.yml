@@ -21,6 +21,10 @@ services:
     ports:
       - "8082:8082"
     environment:
+      # Master switch: 0 makes the proxy a pure passthrough (no input optimize).
+      - OPTIMIZE_ENABLED=${OPTIMIZE_ENABLED:-1}
+      # Upstream API base (override for tests / self-host). Default api.anthropic.com.
+      - ANTHROPIC_UPSTREAM=${ANTHROPIC_UPSTREAM:-https://api.anthropic.com}
       # dashboard token-savings counter: "estimate" (instant, chars/4) | "exact" (count_tokens, background)
       - COUNT_MODE=${COUNT_MODE:-estimate}
       # The one best mode: optimize input AND shorten output by default. CONCISE=0 to disable.
@@ -38,12 +42,14 @@ services:
       - CACHE_ENABLED=${CACHE_ENABLED:-1}
       - CACHE_INDEX=${CACHE_INDEX:-numpy}      # numpy (default) | hnsw | faiss
       - CACHE_HIT=${CACHE_HIT:-0.92}           # cosine similarity to serve a hit
+      - CACHE_SOFT=${CACHE_SOFT:-0.88}         # [soft,hit) = near-miss (logged, not served)
       - CACHE_DEDUP=${CACHE_DEDUP:-0.97}       # ≥ on store → merge instead of insert
       - CACHE_MAX_MB=${CACHE_MAX_MB:-50}       # store budget (embeddings + responses)
       - CACHE_PER_MODEL=${CACHE_PER_MODEL:-0}  # 1 = namespace cache per requested model
-      - CACHE_PERSIST_PATH=${CACHE_PERSIST_PATH:-/cache/store.pkl}
-      # Report optimized turns into the collector (same compose network).
-      - INFERENCEIQ_DASHBOARD=http://dashboard:8088
+      - CACHE_MODEL=${CACHE_MODEL:-BAAI/bge-small-en-v1.5}   # local ONNX embedding model
+      - CACHE_PERSIST_PATH=${CACHE_PERSIST_PATH:-/cache/store.json}
+      # Where the PROXY reports (default the local collector; set to a remote/AWS URL to centralize).
+      - INFERENCEIQ_DASHBOARD=${INFERENCEIQ_DASHBOARD:-http://dashboard:8088}
       # Where the proxy's /dashboard redirects a browser (host-visible URL).
       - DASHBOARD_PUBLIC_URL=${DASHBOARD_PUBLIC_URL:-http://localhost:8088}
     volumes:
