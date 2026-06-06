@@ -511,6 +511,49 @@ restart. Set `INFERENCEIQ_DASHBOARD=off` to stop reporting. If the collector was
 > prompt the **By machine** panel should show your host. The endpoint is `/api/record` (POST) —
 > nothing else.
 
+### Point the *proxy* at the same dashboard
+
+The hook/CLI use `~/.inferenceiq.json` (above). The **proxy** is configured separately, by an env
+var on the `intercept` service — by default compose points it at the **local** dashboard
+(`http://dashboard:8088`). So out of the box: hook → wherever your config says, proxy → local. To
+send the proxy's **output-token** savings to the same remote host, set its target and restart:
+
+```bash
+INFERENCEIQ_DASHBOARD=http://foo.com:8088 IQ_TOKEN=secret docker compose up -d intercept
+#   (or edit the INFERENCEIQ_DASHBOARD line in compose.yml)
+```
+
+Now both the hook (input savings) and the proxy (real output savings) land on one dashboard.
+
+### Driving Claude through the proxy — `./iq`
+
+`./iq` brings up the stack and launches Claude Code with `ANTHROPIC_BASE_URL` pointed at the proxy
+(scoped to that command — it changes no global config). This is the **only** path that measures the
+big lever (shorter replies, from each response's real token usage):
+
+```bash
+./iq             # interactive Claude Code, optimized through the proxy
+./iq -p "..."    # one-shot
+```
+
+### Do I need an API key?
+
+The proxy forwards to `api.anthropic.com`, so it (and `recommend`, and exact token counts) needs an
+**API-key** login. **A Pro/Max subscription (OAuth) ignores `ANTHROPIC_BASE_URL`** — its traffic
+never reaches the proxy. So on a subscription, or with no key at all, use the **hook** (it's
+pure-stdlib, needs no key, runs on OAuth):
+
+| Surface | Needs an API key? | What it measures |
+|---|---|---|
+| **Hook / plugin** (`UserPromptSubmit`) | **No** — works on OAuth/subscription | input trim per prompt + injects the brevity directive (output shrinks but is *not counted* here) |
+| **CLI `optimize.py`** | No (key only for *exact* counts; else estimates) | input trim |
+| **CLI `recommend.py`** | **Yes** | best-practice rewrite |
+| **Proxy `intercept.py` / `./iq`** | **Yes** (and OAuth bypasses it) | real output-token savings, routing, cache |
+
+**Bottom line without a key:** the **plugin/hook is your path** — it reports input savings to your
+dashboard and really does shorten replies (you just can't measure the output tokens until you run
+through the proxy with an API key).
+
 ---
 
 ## Configuration
