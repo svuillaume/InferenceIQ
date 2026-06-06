@@ -366,7 +366,17 @@ IQ_TOKEN=$(openssl rand -hex 24) ./install.sh  # public box — require a token 
 #   knobs:  PORT=9000  IQ_TZ=America/Toronto  ./install.sh   ·   ./install.sh --no-docker
 ```
 
-**Manual**, if you'd rather not use the script:
+**No Docker?** Use [`dashboard/run.sh`](dashboard/run.sh) — it makes a local venv (once), installs
+the deps, and serves in the foreground (Linux & macOS):
+
+```bash
+cd dashboard
+./run.sh                                       # http://localhost:8088 (Ctrl-C to stop)
+IQ_TOKEN=$(openssl rand -hex 24) ./run.sh      # with write auth
+nohup env IQ_TOKEN=secret ./run.sh > dashboard.log 2>&1 &   # background
+```
+
+**Fully manual**, if you'd rather not use either script:
 
 ```bash
 cd dashboard
