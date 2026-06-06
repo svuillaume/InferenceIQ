@@ -1,0 +1,14 @@
+# Secrets / local env
+.env
+.env.*
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Local sims / scratch
+sims/
+
+# OS
+.DS_Store

@@ -391,7 +391,51 @@ Already enabled in this repo via `.claude/settings.json`. To enable it **globall
 Takes effect on the **next** Claude Code session (you may be asked to approve the new hook). The
 hook is pure-stdlib, so it runs under any `python3`.
 
-**TL;DR:** run **A**, open http://localhost:8088, then `./demo.sh`.
+### E) Claude Code plugin — one-command install via `/plugin` *(recommended for the hook)*
+
+**Plain English:** instead of hand-editing `settings.json` (option D), install the hook as a
+Claude Code **plugin**. This repo *is* the plugin (manifest at `.claude-plugin/`), and it also
+serves as its own one-plugin marketplace — so a teammate installs it in two slash-commands, no
+file paths to wire up.
+
+**Prerequisites**
+- Claude Code with plugin support, and `python3` on `PATH` (the hook is pure-stdlib).
+- The plugin files must be present on the GitHub repo (`.claude-plugin/`, `hooks/hooks.json`,
+  `optimize.py`, `.claude/hooks/optimize_prompt.py`) — see *Publishing* below.
+
+**1 — Add the marketplace** (one-time, points at this repo):
+```
+/plugin marketplace add svuillaume/InferenceIQ
+```
+
+**2 — Install the plugin:**
+```
+/plugin install inferenceiq@inferenceiq
+```
+*(`inferenceiq@inferenceiq` = `plugin-name@marketplace-name`; both are named `inferenceiq`.)*
+
+CLI equivalents, if you prefer the shell:
+```bash
+claude plugin marketplace add svuillaume/InferenceIQ
+claude plugin install inferenceiq@inferenceiq
+```
+
+**3 — Verify:** open a new prompt and confirm Claude received the injected directive — run
+`/plugin` and check **inferenceiq** is enabled, or just watch replies get terser. (The plugin's
+`hooks/hooks.json` invokes `.claude/hooks/optimize_prompt.py` with
+`OPTIMIZER_DIR="${CLAUDE_PLUGIN_ROOT}"`, so `optimize.py` resolves from inside the installed
+plugin — no machine-specific paths.)
+
+**4 — Configure (optional):** the same env vars as the manual hook apply — `CONCISE_NOTE`
+(override the brevity directive) and `INFERENCEIQ_DASHBOARD` (`off` to stop reporting).
+
+> **Publishing.** `/plugin marketplace add` clones the GitHub repo, so the plugin files must be
+> committed and pushed. Right now only `README.md` is on `origin/main` — push at least
+> `.claude-plugin/`, `hooks/hooks.json`, `optimize.py`, and `.claude/hooks/optimize_prompt.py`
+> (a `.gitignore` for `.env`/`.venv/`/`__pycache__/` is recommended first).
+
+**TL;DR:** run **A**, open http://localhost:8088, then `./demo.sh`. For just the hook,
+use **E**: `/plugin marketplace add svuillaume/InferenceIQ` → `/plugin install inferenceiq@inferenceiq`.
 
 ---
 
