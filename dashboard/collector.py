@@ -100,6 +100,7 @@ def _fresh_tally():
         "hosts": Counter(), "host_saved": {},
         "recent": [],
         "series": [], "_ls": 0.0,
+        "t0": 0.0,                         # epoch of the first event → live run-rate window
         "mode_seen": 0.0,                  # last demo.sh heartbeat → show "Demo" vs "live"
         # Output-side; cache_read/creation/input come from Anthropic's REAL usage object.
         "out": {"concise_tokens": 0, "concise_n": 0, "normal_tokens": 0, "normal_n": 0,
@@ -148,6 +149,8 @@ def record_event(kind, source="cli", saved=0, rules=None, techniques=None, tips=
                  layer="", similarity=0.0, in_tokens=0, cache_read=0, cache_creation=0,
                  routed_from=""):
     """Single funnel for every counted event. Privacy: prompt text is NEVER stored."""
+    if not TALLY["t0"]:
+        TALLY["t0"] = time.time()   # start the live run-rate window at the first real event
     host = host or "—"
     TALLY["hosts"][host] += 1
     TALLY["sources"][source] += 1
@@ -302,6 +305,7 @@ async def api_stats():
                               for k, v in TALLY["routing"]["pairs"].most_common(6)]},
         "by_host": _by_host(), "recent": list(reversed(TALLY["recent"]))[:15],
         "output": o, "series": TALLY["series"], "pricing": PRICING,
+        "elapsed_seconds": round(time.time() - TALLY["t0"]) if TALLY["t0"] else 0,
         "mode": "demo" if (time.time() - TALLY["mode_seen"]) < 12 else "live",
         "tz": _tz["name"] or "", "public_ip": _tz["ip"] or "",
     })
@@ -512,8 +516,9 @@ PAGE = r"""<!DOCTYPE html>
 </section>
 
 <section class="page" data-p="team">
-  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
-    <span style="font-size:.8rem;color:var(--muted)">Model a team of</span>
+  <div class="panel full" id="roi-live" style="margin-bottom:18px;padding:24px 20px"></div>
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:22px 0 14px">
+    <span style="font-size:.8rem;color:var(--muted)">Or model a hypothetical team of</span>
     <select id="roi-size"><option value="5">5 developers</option><option value="15" selected>15 developers</option><option value="25">25 developers</option><option value="50">50 developers</option><option value="100">100 developers</option></select>
     <span style="font-size:.74rem;color:var(--dim)">coding 6 hrs/day · ~22 days/mo · ~$300/dev/mo baseline (morphllm.com)</span>
   </div>
@@ -586,6 +591,7 @@ const HELP={
   lvRoute:'<b>Model routing</b> — saving from serving a reply on a cheaper model than requested, on REAL token counts.<br><span class="f">Σ inTok×(from.in−to.in) + outTok×(from.out−to.out)</span> · only when ROUTE_MODELS=on',
   lvCache:'<b>Prompt cache</b> — real saving from Anthropic usage.<br><span class="f">cache_read tokens × input price × 0.9</span>',
   chart:'<b>Savings accumulating</b> — see total tokens saved climb over time.<br><span class="f">cumulative (input tokens saved + estimated output tokens saved), sampled ~3s</span>',
+  roiLive:'<b>Projected monthly savings</b> — the REAL $ saved so far, extrapolated to 30 days from the live run-rate. No team model — uses actual measured usage and the number of machines currently reporting.<br><span class="f">total $ saved × (30d ÷ elapsed observed); needs ~2 min of data</span>',
   roiMo:'<b>Saved / month</b> — modeled recurring saving for the chosen team.<br><span class="f">baseline × reduction; baseline = $2.27/dev/h × 6h × 22d × devs (~$300/dev/mo, morphllm.com)</span>',
   roiYr:'<b>Saved / year</b><br><span class="f">saved/month × 12</span>',
   roi3:'<b>Saved over 3 years</b><br><span class="f">saved/month × 36</span>',
@@ -720,6 +726,26 @@ async function tick(){
     :'';
   set('routes',routeHdr+(!routes.length?'<div class="empty">No routing yet — set <code>ROUTE_MODELS=advise|on</code>.</div>'
     :routes.map(r=>`<span class="chip"><b class="accent">${esc(r.name)}</b> &nbsp;${r.count}</span>`).join('')));
+
+  // LIVE PROJECTION — extrapolate the REAL measured savings to a month (no team model)
+  const el=d.elapsed_seconds||0, MONTH=2592000;
+  const fmtDur=s=>s<90?Math.round(s)+'s':s<5400?Math.round(s/60)+'m':s<172800?(s/3600).toFixed(1)+'h':(s/86400).toFixed(1)+'d';
+  const liveHead=`<div style="font-size:.74rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">Projected monthly savings · measured from live usage${H('roiLive')}</div>`;
+  let liveBody;
+  if(el>=120&&totalUSD>0){
+    const mo=totalUSD*MONTH/el, perDev=mo/Math.max(1,machines), perDay=totalUSD*86400/el;
+    const toksMo=((d.tokens_saved||0)+(o.out_tokens_saved||0))*MONTH/el;
+    liveBody=`<div class="green" style="font-size:3.2rem;font-weight:800;letter-spacing:-.03em;line-height:1.05;margin:6px 0 2px">${usd(mo)} <span style="font-size:1.3rem;color:var(--muted);font-weight:600">/ month</span></div>
+      <div style="font-size:.95rem;color:var(--fg)">extrapolated from <b class="green">${usd(totalUSD)}</b> saved over <b>${fmtDur(el)}</b> of live data across <b>${machines||0}</b> developer${machines===1?'':'s'} · run-rate <b>${usd(perDay)}</b>/day</div>
+      <div class="three" style="margin-top:16px">
+        <div class="mini"><div class="t">Per developer / mo</div><div class="b violet">${usd(perDev)}</div><div class="x">${machines||0} reporting now</div></div>
+        <div class="mini"><div class="t">Tokens saved / mo</div><div class="b green">${k(toksMo)}</div><div class="x">input + output, projected</div></div>
+        <div class="mini"><div class="t">Annualized</div><div class="b green">${usd(mo*12)}</div><div class="x">at the current run-rate</div></div>
+      </div>`;
+  }else{
+    liveBody=`<div class="empty" style="font-size:.9rem;margin-top:8px">Collecting live data… need ~2 min of events to project a stable run-rate${el?` (have ${fmtDur(el)})`:''}. Meanwhile, model a hypothetical team below.</div>`;
+  }
+  set('roi-live',liveHead+liveBody);
 
   // TEAM ROI
   const rs=$('roi-size'); if(rs&&!rs.dataset.init){rs.dataset.init='1';rs.onchange=()=>renderROI(LASTO);}

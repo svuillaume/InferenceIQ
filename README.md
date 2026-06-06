@@ -77,9 +77,11 @@ saving is measured**. Where possible it's **real** (from Anthropic's `count_toke
 **Measured with Anthropic's real data** (techniques 1–3, 6–7): exact `count_tokens` and the response
 `usage` object (`input_tokens` / `output_tokens` / `cache_read_input_tokens` /
 `cache_creation_input_tokens`). The dashboard's *Prompt-cache saved* and *Reply reduction* numbers are
-real, not modeled; the *Team ROI* projections are modeled (clearly labelled). See
-**[roadmap.md](roadmap.md)** for what's applied vs planned vs tool-wrapper-only, with Anthropic doc
-references.
+real, not modeled. The **ROI** tab leads with a **live projection** — the real $ saved so far,
+extrapolated to a month from the measured run-rate and the actual number of reporting machines
+(no team model) — and keeps a separate **hypothetical-team** model (5/10/15+ devs) below, clearly
+labelled as modeled. See **[roadmap.md](roadmap.md)** for what's applied vs planned vs
+tool-wrapper-only, with Anthropic doc references.
 
 ---
 
