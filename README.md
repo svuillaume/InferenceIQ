@@ -437,6 +437,47 @@ plugin — no machine-specific paths.)
 **TL;DR:** run **A**, open http://localhost:8088, then `./demo.sh`. For just the hook,
 use **E**: `/plugin marketplace add svuillaume/InferenceIQ` → `/plugin install inferenceiq@inferenceiq`.
 
+### Point the hook at a remote dashboard (e.g. `foo.com`)
+
+By default the hook reports to `http://localhost:8088`. To send metrics to a central collector
+running elsewhere — say `https://foo.com:8088` (a box you stood up with
+[`dashboard/install.sh`](#c-dashboard-only--standalone-local-or-on-a-remote-box)) — point the
+hook at it in **any one** of these ways (they resolve in this order: env var → config file →
+default):
+
+**1 — Slash command** (after installing the plugin, **E**) — the simplest for plugin users:
+```
+/inferenceiq:dashboard https://foo.com:8088
+/inferenceiq:dashboard https://foo.com:8088 <token>     # if the collector requires IQ_TOKEN
+```
+
+**2 — CLI** (writes the same config file from the shell):
+```bash
+./optimize.py --set-dashboard https://foo.com:8088          # add --set-token <secret> if protected
+./optimize.py --show-config                                  # check what's set
+```
+
+**3 — Config file** — both of the above just write `~/.inferenceiq.json` (override the path with
+`$IQ_CONFIG`):
+```json
+{ "dashboard": "https://foo.com:8088", "token": "optional-shared-secret" }
+```
+
+**4 — Environment variable** (wins over the file; good for the proxy/compose or CI):
+```bash
+export INFERENCEIQ_DASHBOARD=https://foo.com:8088
+export IQ_TOKEN=optional-shared-secret                       # only if the collector sets IQ_TOKEN
+```
+
+The hook then POSTs each run to **`https://foo.com:8088/api/record`** (host-tagged, counts-only by
+default). It reads the config **per prompt**, so changes take effect on your next message — no
+restart. Set `INFERENCEIQ_DASHBOARD=off` to stop reporting. If the collector was started with
+`IQ_TOKEN`, every reporter must send the **same** token (option 1/2's token arg, or `IQ_TOKEN`).
+
+> **Verify it's landing:** `curl https://foo.com:8088/api/stats` should return JSON, and after a
+> prompt the **By machine** panel should show your host. The endpoint is `/api/record` (POST) —
+> nothing else.
+
 ---
 
 ## Configuration
