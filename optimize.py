@@ -16,6 +16,11 @@ Usage:
   ./optimize.py --batch -                     # read the batch from stdin
   ANTHROPIC_API_KEY=sk-ant-... ./optimize.py "..."   # for exact token counts
 
+  ./optimize.py --set-dashboard https://host:8088    # point this machine at a collector
+  ./optimize.py --set-dashboard https://host --set-token SECRET   # protected collector
+  ./optimize.py --show-config                 # print the resolved dashboard/token config
+  #   writes ~/.inferenceiq.json (or $IQ_CONFIG); used by the Claude Code plugin install.
+
 Batch file format: prompts separated by a line containing only `---`.
 If no `---` separators are present, each non-empty line is treated as one prompt.
 
@@ -207,14 +212,58 @@ def count_tokens(texts):
 
 
 # ── Unified dashboard reporting ─────────────────────────────────────────────────
+def _config() -> dict:
+    """Optional JSON config for plugin / GUI installs that can't easily set env vars.
+    Path: $IQ_CONFIG, else ~/.inferenceiq.json. Keys: "dashboard", "token". Fail-open."""
+    try:
+        import json as _json
+        path = os.getenv("IQ_CONFIG") or os.path.join(os.path.expanduser("~"), ".inferenceiq.json")
+        with open(path, encoding="utf-8") as f:
+            return _json.load(f)
+    except Exception:
+        return {}
+
+
+def _dashboard_url() -> str:
+    """Where to report: env var wins, then ~/.inferenceiq.json, then localhost. So a
+    `/plugin`-installed hook can target a remote/AWS collector via the config file."""
+    return (os.getenv("INFERENCEIQ_DASHBOARD") or _config().get("dashboard")
+            or "http://localhost:8088").rstrip("/")
+
+
+def _token() -> str:
+    """Shared token for a protected (public/cloud) collector. env IQ_TOKEN, then config."""
+    return os.getenv("IQ_TOKEN") or _config().get("token") or ""
+
+
+def _config_path() -> str:
+    return os.getenv("IQ_CONFIG") or os.path.join(os.path.expanduser("~"), ".inferenceiq.json")
+
+
+def set_config(dashboard=None, token=None):
+    """Write/merge ~/.inferenceiq.json so a `/plugin` install can target a remote/AWS
+    collector without env vars. Keys match what report() reads: `dashboard`, `token`."""
+    import json as _json
+    cfg = _config()
+    if dashboard is not None:
+        cfg["dashboard"] = dashboard.rstrip("/")
+    if token is not None:
+        cfg["token"] = token
+    path = _config_path()
+    with open(path, "w", encoding="utf-8") as f:
+        _json.dump(cfg, f, indent=2)
+        f.write("\n")
+    return path, cfg
+
+
 def report(kind, saved, source="cli", rules=None, techniques=None, tips=None,
            before="", after=""):
     """
-    Best-effort: tell the one dashboard (collector on :8088) about this run so CLI,
-    web, and proxy activity all land in a SINGLE view. Fire-and-forget — silent and
-    fast if the dashboard isn't running. Disable with INFERENCEIQ_DASHBOARD=off.
+    Best-effort: tell the one dashboard (collector on :8088, or a remote/AWS host) about
+    this run so CLI, web, and proxy activity all land in a SINGLE view. Fire-and-forget —
+    silent and fast if the dashboard isn't running. Disable with INFERENCEIQ_DASHBOARD=off.
     """
-    url = os.getenv("INFERENCEIQ_DASHBOARD", "http://localhost:8088").rstrip("/")
+    url = _dashboard_url()
     if not url or url.lower() == "off":
         return
     # stdlib only — the CLI runs under whatever python the user has (often no httpx),
@@ -228,8 +277,11 @@ def report(kind, saved, source="cli", rules=None, techniques=None, tips=None,
             "rules": rules or [], "techniques": techniques or [], "tips": tips or [],
             "before": before, "after": after, "host": HOST, "user": USER,
         }).encode()
-        req = _u.Request(f"{url}/api/record", data=body,
-                         headers={"content-type": "application/json"}, method="POST")
+        headers = {"content-type": "application/json"}
+        tok = _token()
+        if tok:
+            headers["X-IQ-Token"] = tok   # required by a token-protected collector
+        req = _u.Request(f"{url}/api/record", data=body, headers=headers, method="POST")
         _u.urlopen(req, timeout=1.5).read()
     except Exception:
         pass   # dashboard down / offline — the CLI must never fail because of it
@@ -299,6 +351,8 @@ def run_batch(path: str, out_path: str | None):
 def main(argv):
     copy = False
     batch_path = out_path = None
+    set_dash = set_tok = None
+    show_cfg = False
     rest = []
     it = iter(argv)
     for a in it:
@@ -308,11 +362,30 @@ def main(argv):
             batch_path = next(it, None)
         elif a == "--out":
             out_path = next(it, None)
+        elif a == "--set-dashboard":          # point this machine at a (remote/AWS) collector
+            set_dash = next(it, None)
+        elif a == "--set-token":              # token for a protected collector
+            set_tok = next(it, None)
+        elif a == "--show-config":
+            show_cfg = True
         elif a in ("-h", "--help"):
             print(__doc__)
             return 0
         else:
             rest.append(a)
+
+    # Config management: write/show ~/.inferenceiq.json (used by `/plugin` installs).
+    if show_cfg:
+        import json as _json
+        print(f"config: {_config_path()}")
+        print(_json.dumps(_config(), indent=2))
+        return 0
+    if set_dash is not None or set_tok is not None:
+        path, cfg = set_config(set_dash, set_tok)
+        print(f"✓ wrote {path}")
+        print(f"  dashboard: {cfg.get('dashboard', '(unset → http://localhost:8088)')}")
+        print(f"  token:     {'set' if cfg.get('token') else '(none)'}")
+        return 0
 
     if batch_path is not None:
         return run_batch(batch_path, out_path)

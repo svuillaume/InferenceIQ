@@ -10,5 +10,10 @@ __pycache__/
 # Local sims / scratch
 sims/
 
+# Machine-specific local Claude Code settings (holds an absolute hook path; the plugin
+# replaces this for distribution). Keep local; don't publish.
+.claude/settings.json
+.claude/settings.local.json
+
 # OS
 .DS_Store

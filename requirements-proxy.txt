@@ -1,0 +1,10 @@
+# Runtime deps for the intercept PROXY image (no anthropic SDK — that's CLI-only).
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+httpx==0.28.1
+# Semantic cache: local ONNX embedding model (no PyTorch) + vector math.
+fastembed==0.8.0
+numpy>=1.26
+# Optional ANN backends — only needed if CACHE_INDEX=hnsw or faiss (numpy is the default):
+#   hnswlib
+#   faiss-cpu

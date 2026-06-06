@@ -462,7 +462,17 @@ use **E**: `/plugin marketplace add svuillaume/InferenceIQ` → `/plugin install
 | proxy | `CONCISE_NOTE` | override the brevity directive text |
 | proxy | `DASHBOARD_PUBLIC_URL` | where `/dashboard` redirects a browser (default `http://localhost:8088`) |
 | all reporters | `INFERENCEIQ_DASHBOARD` | where to report runs (default `http://localhost:8088`; `http://dashboard:8088` in compose; a remote URL for central collection; `off` disables) |
+| dashboard + reporters | `IQ_TOKEN` | shared secret for the **write** endpoints (`/api/record`, `/api/reset`, `/api/tz`). Empty (default) = open. Set it on the collector **and** on every reporter (same value) before exposing the dashboard publicly. Reads (`/api/stats`, `/`) stay open |
+| hook / CLI (plugin installs) | `~/.inferenceiq.json` (or `$IQ_CONFIG`) | JSON config read by `optimize.report()` when env vars aren't available (e.g. a `/plugin` hook): `{"dashboard": "https://dash.yourco.com", "token": "…"}`. Env vars win over the file |
 | optimizer rules | top of `optimize.py` | edit the `RULES` list to tune mechanical behavior |
+
+> **Central collector on a public cloud (e.g. AWS).** The dashboard is standalone and host-tags
+> every event, so one instance can aggregate many machines. Before exposing it: (1) set `IQ_TOKEN`
+> on the collector and on each reporter; (2) terminate **HTTPS** in front (ALB / CloudFront /
+> nginx) — the collector speaks plain HTTP; (3) keep `IQ_REPORT_TEXT=0` so only counts + host
+> leave each machine; (4) note the store is **in-memory** (resets on restart, single process) — add
+> persistence/a single instance for durability. For `/plugin` installs that can't set env vars,
+> ship a `~/.inferenceiq.json` with the `dashboard` URL and `token`.
 
 ---
 
