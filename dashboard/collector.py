@@ -585,6 +585,7 @@ $('roibtn').onclick=()=>{   // ROI lives beside Settings, not in the tab bar
 // ── help tooltips: objective + how each stat is calculated ──
 const HELP={
   total:'<b>Total saved</b> — money saved across every lever, priced by the selected model.<br><span class="f">input$ + output$ + cache$ = inTok×in + outTok×out + cacheRead×in×0.9</span>',
+  toks:'<b>Tokens saved</b> — measured tokens trimmed = input filler removed + output tokens cut by concise mode.<br><span class="f">tokens_saved + out_tokens_saved</span> · cached-read tokens (billed @0.1×) are shown separately in the sub-line.',
   perprompt:'<b>Avg saved / prompt</b> — mean saving across every prompt handled.<br><span class="f">total $ saved ÷ prompts</span> · the hook measures the INPUT trim per prompt; the OUTPUT saving (the big lever) is only counted when traffic runs through the proxy.',
   perdev:'<b>Saved / developer</b> — average saving per reporting machine.<br><span class="f">total $ ÷ active machines</span>',
   calls:'<b>LLM calls avoided</b> — requests served from the semantic cache with NO API call.<br><span class="f">count of exact + semantic cache hits</span>',
@@ -718,9 +719,11 @@ async function tick(){
   // HERO KPIs (business-first)
   const kpi=(v,l,s,c)=>`<div class="kpi"><div class="l">${l}</div><div class="v ${c||''}">${v}</div><div class="s">${s||''}</div></div>`;
   const perPromptUSD=totUSD/Math.max(1,runs);
-  const perPromptTok=((d.tokens_saved||0)+(o.out_tokens_saved||0))/Math.max(1,runs);
+  const trimTok=(d.tokens_saved||0)+(o.out_tokens_saved||0);   // measured tokens trimmed (in+out)
+  const perPromptTok=trimTok/Math.max(1,runs);
   set('hero',
     kpi(usd(totUSD),'Total saved'+H('total'),`across ${runs.toLocaleString()} prompts · ${machines||0} devs`,totUSD>0?'green':'')+
+    kpi(k(trimTok),'Tokens saved'+H('toks'),`${k(d.tokens_saved||0)} in + ${k(o.out_tokens_saved||0)} out · +${k(o.cache_read_tokens||0)} cached`,trimTok>0?'green':'')+
     kpi(runs?usd(perPromptUSD):'—','Avg saved / prompt'+H('perprompt'),runs?`~${k(Math.round(perPromptTok))} tokens · ${runs.toLocaleString()} prompts`:'no prompts yet',perPromptUSD>0?'green':'')+
     kpi(usd(totUSD/Math.max(1,machines)),'Saved / developer'+H('perdev'),`${machines||0} machines reporting`,totUSD>0?'green':'')+
     kpi((cache.hits||0).toLocaleString(),'LLM calls avoided'+H('calls'),`semantic cache · ${cg.hit_rate!=null?cg.hit_rate+'% hit':'—'}`,cache.hits>0?'accent':'')+
