@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# dash — start/stop the InferenceIQ dashboard collector (:8088), no Docker.
+#
+#   ./dash start    # start the collector on :8088 (backgrounded)
+#   ./dash stop     # stop it
+#   ./dash status   # is it up? where's the log?
+#
+# Standalone monitor: imports nothing from the rest of the repo. The proxy
+# (iq / iq-lite) POSTs savings here; this just renders the aggregate. Stopping
+# the proxy never touches this, and vice-versa. It reuses iq-lite's venv
+# (.venv-iq) for uvicorn so there's nothing extra to install.
+
+set -euo pipefail
+
+DIR="/Users/svuillaume/caching_project/inferenceiq"
+VENV="$DIR/.venv-iq"             # shared with iq-lite
+PORT="${IQ_DASH_PORT:-8088}"     # use $IQ_DASH_PORT if set, else 8088
+LOG="$DIR/.dash.log"
+PIDF="$DIR/.dash.pid"            # file holding the running collector's process id
+
+# Returns success (exit 0) if the collector answers on :$PORT.
+dash_up() {
+  curl -sf "http://localhost:$PORT/api/stats" >/dev/null 2>&1
+}
+
+# --- start ----------------------------------------------------------------
+start_dash() {
+  if dash_up; then
+    echo "dash: collector already running on :$PORT" >&2
+    return 0
+  fi
+
+  # Reuse iq-lite's venv; create it with the collector's deps if absent.
+  if [ ! -x "$VENV/bin/uvicorn" ]; then
+    echo "dash: creating venv at $VENV (one-time) …" >&2
+    python3 -m venv "$VENV"
+    "$VENV/bin/pip" install -q --upgrade pip
+    "$VENV/bin/pip" install -q fastapi "uvicorn[standard]" tzdata
+  fi
+
+  echo "dash: starting collector on :$PORT (log → $LOG) …" >&2
+
+  # Background uvicorn (nohup + &), redirect output to the log, save the pid.
+  ( cd "$DIR/dashboard" \
+    && nohup "$VENV/bin/uvicorn" collector:app --host 0.0.0.0 --port "$PORT" \
+         >>"$LOG" 2>&1 &
+    echo $! >"$PIDF" )
+
+  # Wait up to ~5s (50 × 0.1s) for it to start answering.
+  for _ in $(seq 1 50); do
+    if dash_up; then echo "dash: up → http://localhost:$PORT" >&2; return 0; fi
+    sleep 0.1
+  done
+
+  echo "dash: collector did not come up (see $LOG)" >&2
+  return 1
+}
+
+# --- stop -----------------------------------------------------------------
+stop_dash() {
+  # Preferred: kill the pid we saved at start. If that works, clean up.
+  if [ -f "$PIDF" ] && kill "$(cat "$PIDF")" 2>/dev/null; then
+    rm -f "$PIDF"
+    echo "dash: stopped." >&2
+  # Fallback: no/stale pid file → find the process by its command line.
+  elif pkill -f "uvicorn collector:app .*--port $PORT" 2>/dev/null; then
+    echo "dash: stopped." >&2
+  else
+    echo "dash: nothing to stop on :$PORT" >&2
+  fi
+}
+
+# --- dispatch -------------------------------------------------------------
+case "${1:-}" in
+  start)  start_dash; exit $? ;;
+  stop)   stop_dash;  exit 0  ;;
+  status)
+    if dash_up; then
+      echo "dash: up on :$PORT → http://localhost:$PORT  (log: $LOG)" >&2
+    else
+      echo "dash: not running on :$PORT" >&2
+    fi
+    exit 0 ;;
+  *)
+    echo "usage: ./dash start | stop | status" >&2
+    exit 2 ;;
+esac
