@@ -2,7 +2,7 @@
   "name": "inferenceiq",
   "description": "Auto-shortens your typed Claude Code prompts and nudges shorter replies via a UserPromptSubmit hook. Pure-stdlib, never blocks, fails open.",
   "version": "1.0.0",
-  "author": { "name": "svuillaume" },
+  "author": { "name": "sam vuillaume" },
   "homepage": "https://github.com/svuillaume/InferenceIQ",
   "repository": "https://github.com/svuillaume/InferenceIQ",
   "keywords": ["tokens", "optimization", "prompts", "hook", "claude-code"],
