@@ -17,7 +17,7 @@ and shows the savings on a live dashboard (UI brand: **FortiInferenceIQ**).
 <img width="991" height="197" alt="image" src="https://github.com/user-attachments/assets/62d89474-ef4e-4294-b00a-617690a42d5f" />
 
 
-## Components
+## Core Components
 
 | Path | What it is |
 |---|---|
@@ -27,22 +27,9 @@ and shows the savings on a live dashboard (UI brand: **FortiInferenceIQ**).
 | `core-engine/calibrate.py` | same-prompt brevity gauge (reply-trimming on vs off) |
 | `proxy/intercept.py` | optimizing reverse proxy, port **:8082** |
 | `dashboard/collector.py` | standalone metrics dashboard, port **:8088** |
-| `.claude/hooks/optimize_prompt.py` | `UserPromptSubmit` hook (shipped as a plugin) |
-| `iq` | launcher: starts the proxy and runs Claude Code through it |
 
-## Install Mode Plugin — Claude Code plugin (the hook, no API key)
 
-In Claude Code:
-
-```
-/plugin marketplace add svuillaume/InferenceIQ
-/plugin install inferenceiq@inferenceiq
-```
-
-Auto-shortens your prompts and nudges shorter replies on every prompt; never blocks; works on any
-login. (Takes effect next session.)
-
-## Install Mode Proxy — Proxy + Claude Code
+## Install Proxy 
 
 ```bash
 docker compose up -d --build     # start the proxy on :8082
@@ -53,7 +40,7 @@ docker compose down              # stop
 - Turn reply-trimming off: `CONCISE=0 docker compose up -d intercept` (on by default).
 - Report to a dashboard: `INFERENCEIQ_DASHBOARD=http://<host>:8088 docker compose up -d intercept`.
 
-## Install — dashboard only (standalone)
+## Install — Dashboard only (standalone)
 
 Depends on nothing else; one instance collects from many machines and **persists totals across
 restarts** via a volume.
