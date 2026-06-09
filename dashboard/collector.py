@@ -670,16 +670,10 @@ PAGE = r"""<!DOCTYPE html>
 </section>
 
 <section class="page" data-p="overview">
-  <div class="panel full" id="brevity-hero" style="margin-bottom:16px;padding:26px 22px"></div>
-  <div class="panel full" style="margin-bottom:16px">
-    <h2>Savings accumulating <span class="hint">cumulative tokens saved over time</span>
-      <span class="help" data-help="<b>Savings accumulating</b> — watch total tokens saved climb.<br><span class='f'>cumulative (input tokens saved + estimated output tokens saved), sampled ~3s</span>">i</span></h2>
-    <div id="chart"><div class="empty">Collecting data… the line builds as savings accumulate.</div></div>
-  </div>
   <div class="panel full">
-    <h2>Where the savings come from <span class="hint">priced as <select id="model"></select></span>
-      <span class="help" data-help="<b>Where the savings come from</b> — the three money levers, priced by the selected model. Hover each card for its formula.">i</span></h2>
-    <div class="three" id="levers"></div>
+    <h2>Tokens saved <span class="hint">cumulative, over time</span>
+      <span class="help" data-help="<b>Tokens saved</b> — total tokens saved climbing over time.<br><span class='f'>cumulative (input tokens saved + estimated output tokens saved), sampled ~3s</span>">i</span></h2>
+    <div id="chart"><div class="empty">Collecting data… the line builds as savings accumulate.</div></div>
   </div>
 </section>
 
