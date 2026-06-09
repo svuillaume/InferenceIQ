@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# iq-lite — lightweight iq: runs the InferenceIQ proxy in a venv (no Docker).
+#
+#   ./iq-lite start          # start the proxy on :8082
+#   ./iq-lite stop           # stop it
+#   ./iq-lite [claude args]  # launch Claude Code; uses the proxy ONLY if already running
+#
+# It never auto-starts the proxy — you start/stop it yourself. On `start` it asks
+# which dashboard to report savings to (preset INFERENCEIQ_DASHBOARD to skip the
+# question). Semantic cache is OFF here (no fastembed); optimize + CONCISE +
+# routing still work. Scoped to this command only — changes no global config.
+
+# Safety flags: -e exit on any error, -u error on unset variable,
+# -o pipefail make a pipeline fail if any stage fails.
+set -euo pipefail
+
+DIR="/Users/svuillaume/caching_project/inferenceiq"
+VENV="$DIR/.venv-iq"
+PORT="${IQ_PORT:-8082}"          # use $IQ_PORT if set, else 8082
+LOG="$DIR/.iq-lite.log"
+PIDF="$DIR/.iq-lite.pid"         # file holding the running proxy's process id
+
+# Returns success (exit 0) if the proxy answers on :$PORT, failure otherwise.
+# `curl -sf` = silent, and fail (non-zero) on HTTP errors. >/dev/null 2>&1
+# throws away both normal output and errors — we only care about pass/fail.
+proxy_up() {
+  curl -sf "http://localhost:$PORT/stats" >/dev/null 2>&1
+}
+
+# --- start ----------------------------------------------------------------
+start_proxy() {
+  if proxy_up; then
+    echo "iq-lite: proxy already running on :$PORT" >&2   # >&2 = print to stderr
+    return 0
+  fi
+
+  # Create the Python virtual environment once, with the proxy's dependencies.
+  if [ ! -x "$VENV/bin/uvicorn" ]; then
+    echo "iq-lite: creating venv at $VENV (one-time) …" >&2
+    python3 -m venv "$VENV"
+    "$VENV/bin/pip" install -q --upgrade pip
+    "$VENV/bin/pip" install -q fastapi "uvicorn[standard]" httpx
+  fi
+
+  # Pick where to report savings. We never silently default to the remote box.
+  if [ -z "${INFERENCEIQ_DASHBOARD:-}" ]; then   # -z = "is empty"
+    if [ -t 0 ]; then                            # -t 0 = "running interactively"
+      echo "iq-lite: report savings to which dashboard?" >&2
+      echo "  1) local    http://localhost:8088" >&2
+      echo "  2) remote   http://3.96.147.26:8088" >&2
+      printf 'choose [1]: ' >&2
+      read -r choice || choice=""
+      case "$choice" in
+        2) INFERENCEIQ_DASHBOARD="http://3.96.147.26:8088" ;;
+        *) INFERENCEIQ_DASHBOARD="http://localhost:8088" ;;   # anything else = local
+      esac
+    else
+      # No terminal (e.g. run from a script) → can't ask, so default to local.
+      INFERENCEIQ_DASHBOARD="http://localhost:8088"
+      echo "iq-lite: no TTY; defaulting dashboard → $INFERENCEIQ_DASHBOARD" >&2
+    fi
+    export INFERENCEIQ_DASHBOARD
+  fi
+
+  echo "iq-lite: reporting to $INFERENCEIQ_DASHBOARD" >&2
+  echo "iq-lite: starting proxy on :$PORT (log → $LOG) …" >&2
+
+  # Launch uvicorn in the background (nohup + &), redirect its output to the log,
+  # and save its process id to $PIDF so `stop` can find it later.
+  ( cd "$DIR/proxy" \
+    && PYTHONPATH="$DIR/core-engine" \
+       CACHE_ENABLED=0 \
+       CONCISE="${CONCISE:-1}" \
+       ROUTE_MODELS="${ROUTE_MODELS:-on}" \
+       INFERENCEIQ_DASHBOARD="$INFERENCEIQ_DASHBOARD" \
+       nohup "$VENV/bin/uvicorn" intercept:app --host 127.0.0.1 --port "$PORT" \
+         >>"$LOG" 2>&1 &
+    echo $! >"$PIDF" )   # $! = pid of the command we just backgrounded
+
+  # Wait up to ~5s (50 × 0.1s) for the proxy to start answering.
+  for _ in $(seq 1 50); do
+    if proxy_up; then echo "iq-lite: up." >&2; return 0; fi
+    sleep 0.1
+  done
+
+  echo "iq-lite: proxy did not come up (see $LOG)" >&2
+  return 1
+}
+
+# --- stop -----------------------------------------------------------------
+stop_proxy() {
+  # Preferred path: kill the pid we saved at start. If that works, clean up.
+  if [ -f "$PIDF" ] && kill "$(cat "$PIDF")" 2>/dev/null; then
+    rm -f "$PIDF"
+    echo "iq-lite: stopped." >&2
+  # Fallback: no/stale pid file → find the process by its command line.
+  elif pkill -f "uvicorn intercept:app .*--port $PORT" 2>/dev/null; then
+    echo "iq-lite: stopped." >&2
+  else
+    echo "iq-lite: nothing to stop on :$PORT" >&2
+  fi
+}
+
+# --- dispatch -------------------------------------------------------------
+# $1 is the first argument. ${1:-} means "$1, or empty if unset" (needed under -u).
+case "${1:-}" in
+  start) start_proxy; exit $? ;;   # $? = exit code of start_proxy
+  stop)  stop_proxy;  exit 0  ;;
+esac
+
+# Find the REAL claude binary so that `alias claude=iq-lite` can't loop forever.
+CLAUDE_BIN="${CLAUDE_BIN:-/Users/svuillaume/.local/bin/claude}"
+[ -x "$CLAUDE_BIN" ] || CLAUDE_BIN="$(command -v claude)"
+
+# Use the proxy only if it's ALREADY up; never start it here.
+# `exec` replaces this script with claude (claude becomes the running process).
+if proxy_up; then
+  echo "⚡ Optimized with FortiInferenceIQ" >&2
+  exec env ANTHROPIC_BASE_URL="http://localhost:$PORT" "$CLAUDE_BIN" "$@"
+fi
+
+echo "○ Plain Claude Mode" >&2
+exec "$CLAUDE_BIN" "$@"

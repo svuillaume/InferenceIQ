@@ -863,7 +863,7 @@ $('roibtn').onclick=()=>{   // ROI lives beside Settings, not in the tab bar
 const HELP={
   total:'<b>Total saved</b> — money saved across every lever, priced by the selected model.<br><span class="f">input$ + output$ + cache$ = inTok×in + outTok×out + cacheRead×in×0.9</span>',
   toks:'<b>Tokens saved</b> — measured tokens trimmed = input filler removed + output tokens cut by concise mode.<br><span class="f">tokens_saved + out_tokens_saved</span> · cached-read tokens (billed @0.1×) are shown separately in the sub-line.',
-  perprompt:'<b>Avg saved / prompt</b> — mean saving across every prompt handled.<br><span class="f">total $ saved ÷ prompts</span> · the hook measures the INPUT trim per prompt; the OUTPUT saving (the big lever) is only counted when traffic runs through the proxy.',
+  perprompt:'<b>Avg saved / prompt</b> — mean saving across every prompt handled.<br><span class="f">total $ saved ÷ prompts</span> · the CLI measures the INPUT trim per prompt; the OUTPUT saving (the big lever) is only counted when traffic runs through the proxy.',
   perdev:'<b>Saved / developer</b> — average saving per reporting machine.<br><span class="f">total $ ÷ active machines</span>',
   calls:'<b>LLM calls avoided</b> — requests served from the semantic cache with NO API call.<br><span class="f">count of exact + semantic cache hits</span>',
   reply:'<b>Reply reduction</b> — how much shorter concise replies are (the big lever; output ≈5× input).<br><span class="f">(normal_avg − concise_avg) ÷ normal_avg</span> · from real output_tokens',
@@ -1034,7 +1034,7 @@ async function tick(){
          <div class="mini"><div class="t">Avg reply length</div><div class="b">${ca.toLocaleString()}<span class="c" style="font-size:.9rem"> vs ${na.toLocaleString()}</span></div><div class="x">concise vs normal</div></div>
        </div>`
     :`<div class="green" style="font-size:2.2rem;font-weight:800;margin:6px 0 2px">Brevity engine ready</div>
-      <div class="empty" style="font-size:.9rem">Need replies in BOTH buckets to measure: send prompts with concise mode on (proxy <code>CONCISE=1</code> or the hook) and some without. ${cn?`Have ${cn} concise, ${o.normal_n||0} normal.`:''}</div>`;
+      <div class="empty" style="font-size:.9rem">Need replies in BOTH buckets to measure: send prompts with concise mode on (proxy <code>CONCISE=1</code>) and some without. ${cn?`Have ${cn} concise, ${o.normal_n||0} normal.`:''}</div>`;
   set('brevity-hero',`<div style="font-size:.74rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">💬 Output trimming · the lever FortiInferenceIQ controls${H('reply')}</div>`+bBody);
 
   // OVERVIEW: KPIs + two cumulative line charts + reply-length (median) + output-by-model bars

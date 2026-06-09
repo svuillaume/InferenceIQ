@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 InferenceIQ is a **prompt token-optimizer for Claude / Claude Code**. It makes prompts cheaper
 to send and replies cheaper to receive — *without changing meaning* — and shows the savings on a
-live dashboard. It has **one shared core** and **four thin surfaces** around it:
+live dashboard. It has **one shared core** and **three thin surfaces** around it:
 
 - **Core engines**
   - `optimize.py` — mechanical, offline, deterministic text compressor (regex rules that drop
@@ -15,10 +15,6 @@ live dashboard. It has **one shared core** and **four thin surfaces** around it:
     the dashboard (tagged with this machine's `host`/`user`). It's also a CLI.
 - **Surfaces (the "doers")**
   - **CLI** — `./core-engine/optimize.py "…"`.
-  - **Claude Code hook** — `.claude/hooks/optimize_prompt.py`, a `UserPromptSubmit` hook. Single
-    auto mode: injects a tighter equivalent phrasing **and** a brevity directive as
-    `additionalContext` (it cannot replace typed text, so the input cut is advisory/measured; the
-    output control is real). Never blocks; fails open.
   - **Intercept proxy** — `intercept.py` (:8082). Point `ANTHROPIC_BASE_URL` at it. On each
     `POST /v1/messages` it optimizes **only the last user turn** (skips `tool_result` turns),
     optionally appends a brevity directive (`CONCISE=1`), and forwards everything else
@@ -31,7 +27,9 @@ live dashboard. It has **one shared core** and **four thin surfaces** around it:
     shows a per-machine breakdown. The proxy's `/dashboard` route just redirects here.
 
 `iq` is a launcher that brings up the compose stack and runs `claude` with `ANTHROPIC_BASE_URL`
-pointed at the proxy (scoped to that one command — it changes no global config).
+pointed at the proxy (scoped to that one command — it changes no global config). `iq-lite` is the
+Docker-free variant: it runs the proxy in a local venv (`.venv-iq`, deps `fastapi`/`uvicorn`/`httpx`,
+semantic cache off via `CACHE_ENABLED=0`), starting it on demand if `:8082` isn't already answering.
 
 ## Run / develop
 
@@ -60,9 +58,9 @@ cd dashboard && uvicorn collector:app --host 0.0.0.0 --port 8088
 ## Architecture notes
 
 - **Two report paths to the same collector.** `optimize.report()` is **stdlib-only** (`urllib`),
-  because the CLI and hook run under whatever `python3` the user has (often no `httpx`). The proxy
+  because the CLI runs under whatever `python3` the user has (often no `httpx`). The proxy
   uses async `httpx`. Both POST the same `/api/record` shape and both attach `host`/`user`.
-- **`est()` lives in `optimize.py`** and is imported by the proxy and the hook (one source of
+- **`est()` lives in `optimize.py`** and is imported by the proxy (one source of
   truth for the chars/4 estimate). Exact counts come from `optimize.count_tokens()`.
 - **Single-process dashboard, now persisted.** `TALLY` is in-memory but saved atomically to
   `IQ_PERSIST_PATH` (default `tally.json`, throttled ~5s) and reloaded on startup, so cumulative
@@ -105,16 +103,16 @@ dashboard/                         the standalone monitor surface
   collector.py                     monitor (:8088): per-host, models-used, routing; modern UI
   Dockerfile                       slim collector image (fastapi/uvicorn + tzdata)
   requirements.txt                 fastapi · uvicorn · tzdata
-.claude/hooks/optimize_prompt.py   UserPromptSubmit hook (single auto mode; injects context; never blocks)
 compose.yml                        intercept service (build: proxy/Dockerfile, context = repo root); reports to remote collector
 requirements.txt                   full local/CLI set (fastapi · uvicorn · httpx · anthropic)
 iq                                 launcher: compose up + claude via the proxy
+iq-lite                            Docker-free launcher: proxy in a venv (.venv-iq; cache off) + claude via the proxy
 demo.sh                            drives sample prompts through the proxy to populate the dashboard
 ```
 
 Layout: **core-engine/** (shared core) · **proxy/** (in-path surface) · **dashboard/** (monitor). The
 proxy imports the engine modules from `../core-engine` (a `sys.path` shim locally; `PYTHONPATH=/app/core-engine`
-in the image). The hook resolves `optimize.py` from `core-engine/` too (`OPTIMIZER_DIR` or auto-detect).
+in the image).
 
 ## Model routing & privacy (added)
 

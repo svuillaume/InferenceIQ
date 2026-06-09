@@ -6,14 +6,18 @@
 
 # Python
 .venv/
+.venv-iq/
+.iq-lite.log
+.iq-lite.pid
+.dash.log
+.dash.pid
 __pycache__/
 *.pyc
 
 # Local sims / scratch
 sims/
 
-# Machine-specific local Claude Code settings (holds an absolute hook path; the plugin
-# replaces this for distribution). Keep local; don't publish.
+# Machine-specific local Claude Code settings. Keep local; don't publish.
 .claude/settings.json
 .claude/settings.local.json
 

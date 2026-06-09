@@ -1,24 +1,57 @@
 #!/usr/bin/env bash
-# iq — launch Claude Code in the one InferenceIQ mode.
+# iq — launch Claude Code through the InferenceIQ proxy (Docker).
 #
-# Every prompt is auto-optimized and every reply is auto-shortened by the proxy
-# (Claude answers the optimized version directly — no confirmation), and the
-# savings are collected live on the dashboard at http://3.96.147.26:8088.
+# iq never auto-starts anything. You control the proxy manually:
+#     ./iq start     # docker compose up -d   (proxy :8082 + dashboard)
+#     ./iq stop      # docker compose down
 #
-# Usage:  ./iq            # interactive Claude Code, optimized
-#         ./iq -p "..."   # one-shot, optimized
+# Plain `./iq` (or `./iq -p "..."`) just launches Claude Code:
+#   • proxy already answering on :8082  → routes through it  → "⚡ Optimized with FortiInferenceIQ"
+#   • proxy not running                 → plain Claude        → "○ Plain Claude Mode"
+# Scoped to this command only — it changes no global config.
 #
-# This is SCOPED to this command — it does not change any global config. If the
-# proxy is ever down, just run plain `claude` and you're back to normal.
+# Usage:  ./iq start | ./iq stop | ./iq [claude args...]
 DIR="/Users/svuillaume/caching_project/inferenceiq"
+PROXY="http://localhost:8082"
 
-# Make sure the proxy (:8082) and dashboard (:8088) are up so nothing breaks.
-( cd "$DIR" && docker compose up -d >/dev/null 2>&1 ) \
-  || { echo "iq: could not start the proxy (is Docker running?)" >&2; exit 1; }
+# Manual control of the proxy (the only things that start/stop it).
+case "${1:-}" in
+  start)
+    # Dashboard target is chosen explicitly — no silent default to a remote box.
+    # DASHBOARD_URL is compose's single source of truth (report + browser redirect).
+    if [ -z "${DASHBOARD_URL:-}${INFERENCEIQ_DASHBOARD:-}" ]; then
+      if [ -t 0 ]; then
+        echo "iq: report savings to which dashboard?" >&2
+        echo "  1) local    http://localhost:8088" >&2
+        echo "  2) remote   http://3.96.147.26:8088" >&2
+        printf 'choose [1]: ' >&2
+        read -r _dash || _dash=""
+        case "$_dash" in
+          2) DASHBOARD_URL="http://3.96.147.26:8088" ;;
+          *) DASHBOARD_URL="http://localhost:8088" ;;
+        esac
+      else
+        DASHBOARD_URL="http://localhost:8088"
+        echo "iq: no TTY; defaulting dashboard → $DASHBOARD_URL" >&2
+      fi
+      export DASHBOARD_URL
+    fi
+    echo "iq: reporting to ${DASHBOARD_URL:-$INFERENCEIQ_DASHBOARD}" >&2
+    exec sh -c "cd '$DIR' && docker compose up -d"
+    ;;
+  stop)  exec sh -c "cd '$DIR' && docker compose down" ;;
+esac
 
-# Resolve the REAL claude binary (so an `alias claude=iq` can't recurse into this).
-CLAUDE_BIN="${CLAUDE_BIN:-/Users/svuillaume/.local/bin/claude}"
+# Resolve the real claude binary (so `alias claude=iq` can't recurse).
+CLAUDE_BIN="${CLAUDE_BIN:-$HOME/.local/bin/claude}"
 [ -x "$CLAUDE_BIN" ] || CLAUDE_BIN="$(command -v claude)"
 
-echo "iq · optimizing through localhost:8082 · savings → http://3.96.147.26:8088" >&2
-exec env ANTHROPIC_BASE_URL="http://localhost:8082" "$CLAUDE_BIN" "$@"
+# Detect-only: use the proxy if (and only if) it's already up; never start it.
+if curl -sf "$PROXY/stats" >/dev/null 2>&1; then
+  echo "⚡ Optimized with FortiInferenceIQ" >&2
+  export ANTHROPIC_BASE_URL="$PROXY"
+else
+  echo "○ Plain Claude Mode" >&2
+fi
+
+exec "$CLAUDE_BIN" "$@"

@@ -35,7 +35,7 @@ ANTHROPIC_DIRECT = "https://api.anthropic.com"
 
 
 def est(t: str) -> int:
-    """Rough token estimate (chars/4). Shared by the proxy and the hook for instant,
+    """Rough token estimate (chars/4). Shared by the proxy and CLI for instant,
     offline numbers; the exact path is count_tokens() below."""
     return max(0, len(t or "") // 4)
 
@@ -103,6 +103,7 @@ RULES = [
     # 2b. Politeness / gratitude — the most common no-information forms. Phrase-specific
     # variants first so the generic 'thanks'/'thank you' don't shadow them.
     (_w(r"thank you so much"),            "", "drop 'thank you so much'"),
+    (_w(r"thanks so much"),               "", "drop 'thanks so much'"),
     (_w(r"thanks a lot"),                 "", "drop 'thanks a lot'"),
     (_w(r"thanks a million"),             "", "drop 'thanks a million'"),
     (_w(r"thanks in advance"),            "", "drop 'thanks in advance'"),
@@ -145,6 +146,7 @@ RULES = [
 CLEANUP = [
     (re.compile(r"([.!?])\s+([.!?])"), r"\1"),   # two spaced terminal marks (removal artifact) → first
     (re.compile(r"\s+([,.;:!?])"), r"\1"),       # space before punctuation
+    (re.compile(r"[,;:]+\s*([.!?])"), r"\1"),    # separator hugging a terminal mark ("me,?" → "me?")
     (re.compile(r"([,;:])\1+"), r"\1"),          # doubled punctuation from removals
     (re.compile(r"[ \t]{2,}"), " "),             # collapse runs of spaces/tabs
     (re.compile(r" *\n *"), "\n"),               # trim spaces around newlines
@@ -204,6 +206,9 @@ def optimize(text: str):
     # Drop a dangling leading comma/colon left by removing a sentence-initial filler
     # (e.g. "As you know, the build…" → ", the build…" → "the build…").
     out = re.sub(r"^[\s,;:]+", "", out)
+    # Drop a dangling trailing separator left by removing a sentence-final clause
+    # (e.g. "clean this up for me, if you don't mind" → "clean this up for me,").
+    out = re.sub(r"[\s,;:]+$", "", out)
     # Re-capitalize sentence starts that a removal or swap may have lowercased
     # (start of text, after . ! ?, and after a line break).
     out = re.sub(r"(^|[.!?]\s+|\n\s*)([a-z])",
