@@ -164,6 +164,10 @@ def _load_tally():
     for k in _PLAIN_KEYS:
         if k in d:
             TALLY[k] = d[k]
+    # Older persisted stores predate the median sample windows — ensure the keys exist so the
+    # recorder/summary don't choke (they'll start filling from the next reply).
+    TALLY["out"].setdefault("concise_samples", [])
+    TALLY["out"].setdefault("normal_samples", [])
 
 
 _load_tally()
@@ -242,7 +246,7 @@ def record_event(kind, source="cli", saved=0, rules=None, techniques=None, tips=
         TALLY["out"][f"{b}_tokens"] += n
         TALLY["out"][f"{b}_n"] += 1
         if n > 0:                                   # keep a bounded sample window for the median
-            s = TALLY["out"][f"{b}_samples"]
+            s = TALLY["out"].setdefault(f"{b}_samples", [])   # tolerate older persisted stores
             s.append(n)
             if len(s) > 1000:
                 del s[0]
