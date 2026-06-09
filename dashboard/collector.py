@@ -550,7 +550,7 @@ PAGE = r"""<!DOCTYPE html>
       <span class="help" data-help="<b>Model cost comparison</b> — monthly Claude Code spend per team size on each model tier, baseline (strike-through) → with InferenceIQ. Same per-dev token volume (~45M in / 2.5M out per dev/mo); only the model price changes. Choosing a cheaper tier AND running InferenceIQ compound.">i</span></h2>
     <div id="roi-models"></div></div>
   <div class="panel full"><h2>Subscription plans vs API rates <span class="hint">Pro · Max 5x · Max 20x allowance priced at Opus/Sonnet/Haiku API rates → with InferenceIQ</span>
-      <span class="help" data-help="<b>Subscription plans vs API rates</b> — what each plan's monthly token allowance would cost if billed at API rates per model tier (strike-through), then −reduction% with InferenceIQ.<br><span class='f'>allowance = 5-hour window cap × ~44 windows/mo (Pro 17.6k · Max 5x 88k · Max 20x 220k per window); priced input-heavy (~45M in / 2.5M out ratio); reduction = concise + cache + routing + prompt-caching</span>">i</span></h2>
+      <span class="help" data-help="<b>Subscription plans vs API rates</b> — what each plan's monthly token allowance would cost if billed at API rates per model tier (strike-through), then −reduction% with InferenceIQ.<br><span class='f'>allowance = 5-hour window cap × ~44 windows/mo (Pro 17.6k · Max 5x 88k · Max 20x 220k per window); priced input-heavy (~45M in / 2.5M out ratio); reduction = concise + cache + routing</span>">i</span></h2>
     <div id="roi-plans"></div>
     <div class="x" style="margin-top:10px;color:var(--dim);font-size:.72rem">Plan prices: Pro $20 · Max 5x $100 · Max 20x $200 /mo. Allowance from the 5-hour rolling window cap × ~44 usable windows/mo; a flat plan is one shared bucket, so the model tiers show what that usage would cost at API rates.</div></div>
 </section>
@@ -608,18 +608,16 @@ const HELP={
   perdev:'<b>Saved / developer</b> — average saving per reporting machine.<br><span class="f">total $ ÷ active machines</span>',
   calls:'<b>LLM calls avoided</b> — requests served from the semantic cache with NO API call.<br><span class="f">count of exact + semantic cache hits</span>',
   reply:'<b>Reply reduction</b> — how much shorter concise replies are (the big lever; output ≈5× input).<br><span class="f">(normal_avg − concise_avg) ÷ normal_avg</span> · from real output_tokens',
-  cachek:'<b>Prompt-cache saved</b> — REAL money saved by Anthropic prompt caching (cached reads cost ~0.1×).<br><span class="f">cache_read_input_tokens × in_price × 0.9</span> · from the usage object',
   lvIn:'<b>Shorter prompts</b> — input tokens trimmed (filler + rewrite).<br><span class="f">input tokens saved × input price</span>',
   lvOut:'<b>Shorter replies</b> — output tokens saved by concise mode (5× price).<br><span class="f">(normal_avg−concise_avg)×concise_replies × output price</span>',
   lvRoute:'<b>Model routing</b> — saving from serving a reply on a cheaper model than requested, on REAL token counts.<br><span class="f">Σ inTok×(from.in−to.in) + outTok×(from.out−to.out)</span> · only when ROUTE_MODELS=on',
-  lvCache:'<b>Prompt cache</b> — real saving from Anthropic usage.<br><span class="f">cache_read tokens × input price × 0.9</span>',
   chart:'<b>Savings accumulating</b> — see total tokens saved climb over time.<br><span class="f">cumulative (input tokens saved + estimated output tokens saved), sampled ~3s</span>',
   roiLive:'<b>Projected monthly savings</b> — the REAL $ saved so far, extrapolated to 30 days from the live run-rate. No team model — uses actual measured usage and the number of machines currently reporting.<br><span class="f">total $ saved × (30d ÷ elapsed observed); needs ~2 min of data</span>',
   roiMo:'<b>Saved / month</b> — modeled recurring saving for the chosen team.<br><span class="f">baseline × reduction; baseline = $2.27/dev/h × 6h × 22d × devs (~$300/dev/mo, morphllm.com)</span>',
   roiYr:'<b>Saved / year</b><br><span class="f">saved/month × 12</span>',
   roi3:'<b>Saved over 3 years</b><br><span class="f">saved/month × 36</span>',
   roiDev:'<b>Saved / developer / month</b><br><span class="f">saved/month ÷ developers</span>',
-  roiRed:'<b>Cost reduction</b> — combined % off baseline.<br><span class="f">concise + cache + routing + prompt-caching ≈ 60% (morphllm.com)</span>',
+  roiRed:'<b>Cost reduction</b> — combined % off baseline.<br><span class="f">concise + cache + routing ≈ 52% (morphllm.com)</span>',
   models:'<b>Models used</b> — actual model per reply, from the response usage (replies + output tokens).',
   routes:'<b>Model routing</b> — intent→model decisions (Haiku/Sonnet/Opus). Agentic requests are never routed.',
   hosts:'<b>By machine</b> — per-host events and input tokens saved, from host-tagged reports.',
@@ -657,7 +655,7 @@ const IN_DEV=45e6, OUT_DEV=2.5e6;
 function teamCalc(n,o){
   const base=2.27*6*22*n;                                   // monthly baseline spend
   const concise=(o&&o.pct_shorter)?Math.max(.18,Math.min(.35,o.pct_shorter/100*.45)):.25;
-  const lv=[['💬 Concise replies',concise],['⚡ Semantic cache',.15],['🔀 Model routing',.12],['📦 Prompt caching',.08]];
+  const lv=[['💬 Concise replies',concise],['⚡ Semantic cache',.15],['🔀 Model routing',.12]];
   const red=lv.reduce((s,l)=>s+l[1],0);
   const tokMo=(IN_DEV+OUT_DEV)*n;                           // baseline tokens / mo
   return {n,base,red,saved:base*red,opt:base*(1-red),lv,tokMo,tokSaved:tokMo*red};
@@ -741,9 +739,10 @@ async function tick(){
   // dollars
   const inUSD=(d.tokens_saved||0)/1e6*price.in;
   const outUSD=(o.out_tokens_saved||0)/1e6*price.out;
-  const cacheUSD=(o.cache_read_tokens||0)/1e6*price.in*0.9;   // cache read ~0.1x → save 0.9x (REAL)
   const routing=d.routing||{}, routeUSD=routing.usd||0;       // server-priced cross-model delta (REAL)
-  const totUSD=inUSD+outUSD+cacheUSD+routeUSD;
+  // Prompt caching is a native Anthropic feature (not created by InferenceIQ), so its discount is
+  // intentionally NOT counted as savings here — only levers InferenceIQ actually applies.
+  const totUSD=inUSD+outUSD+routeUSD;
   const machines=(d.by_host||[]).filter(h=>h.host&&h.host!=='—').length;
 
   // HERO KPIs (business-first)
@@ -753,12 +752,11 @@ async function tick(){
   const perPromptTok=trimTok/Math.max(1,runs);
   set('hero',
     kpi(usd(totUSD),'Total saved'+H('total'),`across ${runs.toLocaleString()} prompts · ${machines||0} devs`,totUSD>0?'green':'')+
-    kpi(k(trimTok),'Tokens saved'+H('toks'),`${k(d.tokens_saved||0)} in + ${k(o.out_tokens_saved||0)} out · +${k(o.cache_read_tokens||0)} cached`,trimTok>0?'green':'')+
+    kpi(k(trimTok),'Tokens saved'+H('toks'),`${k(d.tokens_saved||0)} in + ${k(o.out_tokens_saved||0)} out`,trimTok>0?'green':'')+
     kpi(runs?usd(perPromptUSD):'—','Avg saved / prompt'+H('perprompt'),runs?`~${k(Math.round(perPromptTok))} tokens · ${runs.toLocaleString()} prompts`:'no prompts yet',perPromptUSD>0?'green':'')+
     kpi(usd(totUSD/Math.max(1,machines)),'Saved / developer'+H('perdev'),`${machines||0} machines reporting`,totUSD>0?'green':'')+
     kpi((cache.hits||0).toLocaleString(),'LLM calls avoided'+H('calls'),`semantic cache · ${cg.hit_rate!=null?cg.hit_rate+'% hit':'—'}`,cache.hits>0?'accent':'')+
-    kpi(o.concise_n?(o.pct_shorter||0)+'%':'—','Reply reduction'+H('reply'),'shorter answers (the big lever)',o.pct_shorter>0?'green':'amber')+
-    kpi(usd(cacheUSD),'Prompt-cache saved'+H('cachek'),'real, from Anthropic usage',cacheUSD>0?'violet':'')
+    kpi(o.concise_n?(o.pct_shorter||0)+'%':'—','Reply reduction'+H('reply'),'shorter answers (the big lever)',o.pct_shorter>0?'green':'amber')
   );
 
   // BREVITY HERO — the lever IQ actually controls; output trimmed at 5× price (the jackpot)
@@ -776,14 +774,13 @@ async function tick(){
       <div class="empty" style="font-size:.9rem">Need replies in BOTH buckets to measure: send prompts with concise mode on (proxy <code>CONCISE=1</code> or the hook) and some without. ${cn?`Have ${cn} concise, ${o.normal_n||0} normal.`:''}</div>`;
   set('brevity-hero',`<div style="font-size:.74rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">💬 Output trimming · the lever InferenceIQ controls${H('reply')}</div>`+bBody);
 
-  // OVERVIEW: chart + where savings come from (3 levers incl. real cache)
+  // OVERVIEW: chart + where savings come from (levers InferenceIQ actually applies)
   set('chart',chart(d.series||[]));
   const lever=(icon,t,v,x,c)=>`<div class="mini"><div class="t">${icon} ${t}</div><div class="b ${c||''}">${v}</div><div class="x">${x}</div></div>`;
   set('levers',
     lever('✍','Shorter prompts'+H('lvIn'),usd(inUSD),`${k(d.tokens_saved||0)} input tokens · small lever`,inUSD>0?'green':'')+
     lever('💬','Shorter replies'+H('lvOut'),usd(outUSD),`${k(o.out_tokens_saved||0)} output tokens · 5× price`,outUSD>0?'green':'')+
-    lever('🔀','Model routing'+H('lvRoute'),usd(routeUSD),`${routing.replies||0} replies downgraded · real`,routeUSD>0?'green':'')+
-    lever('📦','Prompt cache'+H('lvCache'),usd(cacheUSD),`${k(o.cache_read_tokens||0)} cached reads @0.1× · real`,cacheUSD>0?'green':'')
+    lever('🔀','Model routing'+H('lvRoute'),usd(routeUSD),`${routing.replies||0} replies downgraded · real`,routeUSD>0?'green':'')
   );
 
   // MODELS
@@ -839,11 +836,10 @@ async function tick(){
     for(const [lbl,dy] of HZ){const p=ready?trimUSD+rateU*dy*DAY:null;
       um+=sc(lbl,p==null?'—':usd(p),ready?'projected':'~2 min of data needed');}
     set('sum-usd',um);
-    // Real $, but NOT trimmed tokens — kept out of the headline on purpose.
+    // Model routing: real $, but NOT trimmed tokens — kept out of the headline on purpose.
     set('sum-extra',
-      `Separately (real $, but these are <b>not</b> tokens removed): `+
-      `prompt-cache discount <b class="violet">${usd(cacheUSD)}</b> on ${k(o.cache_read_tokens||0)} cached reads · `+
-      `model routing <b class="violet">${usd(routeUSD)}</b>. These appear in the Overview "Total saved".`);
+      `Separately (real $, but not tokens removed): model routing <b class="violet">${usd(routeUSD)}</b> `+
+      `on ${(routing.replies||0).toLocaleString()} replies served on a cheaper model.`);
   }
 
   // TEAM ROI
