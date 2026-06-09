@@ -720,7 +720,6 @@ PAGE = r"""<!DOCTYPE html>
     <div class="panel"><h2>By source <span class="help" data-help="<b>By source</b> — where events came from: web · CLI · proxy · hook.">i</span></h2><div id="sources"><div class="empty">Nothing yet.</div></div></div>
   </div>
   <div class="grid">
-    <div class="panel"><h2>Top mechanical rules <span class="help" data-help="<b>Top rules</b> — most-fired meaning-preserving filler-strip rules (e.g. drop 'please', 'in order to'→'to').">i</span></h2><ul class="list" id="rules"><li class="empty">Nothing yet.</li></ul></div>
     <div class="panel"><h2>Top best-practice tips <span class="help" data-help="<b>Top tips</b> — best-practice token tips recommended per prompt (RAG, caching, scoping…).">i</span></h2><ul class="list" id="tips"><li class="empty">Nothing yet.</li></ul></div>
   </div>
   <div class="panel full"><h2>Live activity <span class="hint">all sources &amp; machines</span>
