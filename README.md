@@ -1,4 +1,4 @@
-# InferenceIQ — Prompt Token Optimizer for Claude Code
+# InferenceIQ — Prompt Token Optimizer and Saver for Claude Code
 
 Makes Claude prompts cheaper to send and replies cheaper to receive — **without changing meaning** —
 and shows the savings on a live dashboard (UI brand: **FortiInferenceIQ**).
