@@ -1,6 +1,6 @@
 {
   "name": "inferenceiq",
-  "description": "Auto-shortens your typed Claude Code prompts and nudges shorter replies via a UserPromptSubmit hook. Pure-stdlib, never blocks, fails open.",
+  "description": "Token Saver.",
   "version": "1.0.0",
   "author": { "name": "sam vuillaume" },
   "homepage": "https://github.com/svuillaume/InferenceIQ",
