@@ -617,6 +617,13 @@ PAGE = r"""<!DOCTYPE html>
   @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;margin-bottom:16px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .hbar{display:flex;align-items:center;gap:10px;margin:9px 0}
+  .hbar .lab{font-size:.76rem;color:var(--muted);min-width:118px}
+  .hbar .track{flex:1;height:10px;border-radius:6px;background:#0a0e16;border:1px solid var(--line);overflow:hidden}
+  .hbar .track>i{display:block;height:100%;border-radius:6px}
+  .hbar .val{font-size:.78rem;font-weight:700;min-width:64px;text-align:right;font-variant-numeric:tabular-nums}
   .panel{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);
     border-radius:var(--r);padding:16px 18px;box-shadow:0 1px 0 #ffffff06 inset,0 14px 40px -26px #000000bb}
   .panel h2{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
@@ -729,15 +736,30 @@ PAGE = r"""<!DOCTYPE html>
 </section>
 
 <section class="page" data-p="overview">
-  <div class="panel full" style="margin-bottom:16px">
-    <h2>Tokens saved <span class="hint">cumulative, over time</span>
-      <span class="help" data-help="<b>Tokens saved</b> — total tokens saved climbing over time.<br><span class='f'>cumulative (input tokens saved + estimated output tokens saved), sampled ~3s</span>">i</span></h2>
-    <div id="chart"><div class="empty">Collecting data… the line builds as savings accumulate.</div></div>
+  <div class="hero" id="ov-kpis" style="margin-bottom:16px"></div>
+  <div class="grid2" style="margin-bottom:16px">
+    <div class="panel">
+      <h2>Tokens saved <span class="hint">cumulative</span>
+        <span class="help" data-help="<b>Tokens saved</b> — total tokens saved climbing over time.<br><span class='f'>cumulative (input tokens saved + estimated output tokens saved), sampled ~3s</span>">i</span></h2>
+      <div id="chart"><div class="empty">Collecting data…</div></div>
+    </div>
+    <div class="panel">
+      <h2>Money saved <span class="hint">cumulative · Opus 4.8</span>
+        <span class="help" data-help="<b>Money saved</b> — cumulative $ over time, priced at Opus 4.8 (in $5 / out $25 per 1M) plus model-routing savings.<br><span class='f'>inTok×5 + outTok×25 (per 1M) + routing $, sampled ~3s</span>">i</span></h2>
+      <div id="chart-usd"><div class="empty">Collecting data…</div></div>
+    </div>
   </div>
-  <div class="panel full">
-    <h2>Money saved <span class="hint">cumulative · priced on Opus 4.8</span>
-      <span class="help" data-help="<b>Money saved</b> — cumulative $ climbing over time, priced at Opus 4.8 (in $5 / out $25 per 1M) plus model-routing savings.<br><span class='f'>inTok×5 + outTok×25 (per 1M) + routing $, sampled ~3s</span>">i</span></h2>
-    <div id="chart-usd"><div class="empty">Collecting data… the line builds as savings accumulate.</div></div>
+  <div class="grid2">
+    <div class="panel">
+      <h2>Reply length <span class="hint">median · before vs after</span>
+        <span class="help" data-help="<b>Reply length</b> — median output tokens per reply with reply-trimming OFF (CONCISE=0) vs ON (CONCISE=1). Median is robust to the odd very-long answer.">i</span></h2>
+      <div id="ov-reply"><div class="empty">Need replies in both CONCISE buckets.</div></div>
+    </div>
+    <div class="panel">
+      <h2>Output by model <span class="hint">tokens served per model</span>
+        <span class="help" data-help="<b>Output by model</b> — output tokens served by each model (Haiku/Sonnet/Opus) across all replies.">i</span></h2>
+      <div id="ov-models"><div class="empty">No replies recorded yet.</div></div>
+    </div>
   </div>
 </section>
 
@@ -1000,9 +1022,28 @@ async function tick(){
       <div class="empty" style="font-size:.9rem">Need replies in BOTH buckets to measure: send prompts with concise mode on (proxy <code>CONCISE=1</code> or the hook) and some without. ${cn?`Have ${cn} concise, ${o.normal_n||0} normal.`:''}</div>`;
   set('brevity-hero',`<div style="font-size:.74rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">💬 Output trimming · the lever FortiInferenceIQ controls${H('reply')}</div>`+bBody);
 
-  // OVERVIEW: chart + where savings come from (levers FortiInferenceIQ actually applies)
+  // OVERVIEW: KPIs + two cumulative line charts + reply-length (median) + output-by-model bars
   set('chart',chart(d.series||[],'saved','ga','#46d39a','cumulative tokens saved'));
   set('chart-usd',chart(d.series||[],'usd','gu','#6ea8fe','cumulative $ saved',v=>'$'+(v>=1000?Math.round(v).toLocaleString():v.toFixed(2))));
+  {
+    const num=n=>Math.round(n).toLocaleString();
+    const k4=(v,l,s,cl)=>`<div class="kpi"><div class="l">${l}</div><div class="v ${cl||''}">${v}</div><div class="s">${s||''}</div></div>`;
+    set('ov-kpis',
+      k4(usd(totUSD),'Total saved',`${runs.toLocaleString()} prompts`,totUSD>0?'green':'')+
+      k4(k(trimTok),'Tokens saved','input + output',trimTok>0?'green':'')+
+      k4(o.concise_n?(o.pct_shorter||0)+'%':'—','Reply reduction','median · on vs off',o.pct_shorter>0?'green':'amber')+
+      k4((cache.hits||0).toLocaleString(),'LLM calls avoided','semantic cache',cache.hits>0?'accent':''));
+    const nm=o.normal_median||0, cm=o.concise_median||0, rmx=Math.max(nm,cm,1);
+    set('ov-reply',(nm>0&&cm>0)
+      ? `<div class="hbar"><span class="lab">CONCISE=0 (off)</span><div class="track"><i style="width:${Math.round(nm/rmx*100)}%;background:linear-gradient(90deg,#7a5a20,var(--amber))"></i></div><span class="val amber">${num(nm)}</span></div>
+         <div class="hbar"><span class="lab">CONCISE=1 (on)</span><div class="track"><i style="width:${Math.round(cm/rmx*100)}%;background:linear-gradient(90deg,#1c8f6e,var(--green))"></i></div><span class="val green">${num(cm)}</span></div>
+         <div style="color:var(--dim);font-size:.74rem;margin-top:8px">median tokens/reply · <b class="green">${o.pct_shorter||0}% shorter</b></div>`
+      : '<div class="empty">Need replies in both CONCISE buckets — run <code>./core-engine/calibrate.py</code>.</div>');
+    const mm=d.by_model||[], mmx=Math.max(1,...mm.map(x=>x.out_tokens));
+    set('ov-models',mm.length
+      ? mm.map(x=>`<div class="hbar"><span class="lab">${esc(x.model)}</span><div class="track"><i style="width:${Math.round(x.out_tokens/mmx*100)}%;background:linear-gradient(90deg,var(--accent),var(--violet))"></i></div><span class="val">${k(x.out_tokens)}</span></div>`).join('')
+      : '<div class="empty">No replies recorded yet.</div>');
+  }
   const lever=(icon,t,v,x,c)=>`<div class="mini"><div class="t">${icon} ${t}</div><div class="b ${c||''}">${v}</div><div class="x">${x}</div></div>`;
   set('levers',
     lever('✍','Shorter prompts'+H('lvIn'),usd(inUSD),`${k(d.tokens_saved||0)} input tokens · small lever`,inUSD>0?'green':'')+

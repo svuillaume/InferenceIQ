@@ -78,6 +78,28 @@ extrapolated to a month from the measured run-rate and the actual number of repo
 labelled as modeled. See **[roadmap.md](roadmap.md)** for what's applied vs planned vs
 tool-wrapper-only, with Anthropic doc references.
 
+### How the before/after numbers are measured (plain English)
+
+The landing page (`/`) gauges tokens **before vs after** FortiInferenceIQ. Here's exactly what each
+side means:
+
+1. **Measured from Anthropic's real usage** — the numbers come from actual traffic and the response
+   `usage` object, not synthetic tests or estimates.
+2. **Input — filler removed by the optimizer (after = billed input).** Before the request is sent,
+   the optimizer strips meaning-preserving filler (padding phrases, redundant whitespace). The
+   trimmed version is what reaches the API and gets billed, so *after* = your effective input and
+   *before* = after + the filler that was removed.
+3. **Output — median reply length, reply-trimming on vs off.** Two modes are compared: trimming
+   **ON** (`CONCISE=1`, the model is nudged to be concise) vs **OFF** (`CONCISE=0`, normal-length
+   answers). We report the **median** reply length (the typical response, robust to the occasional
+   very long answer that would skew a mean).
+4. **Applied to the concise replies served.** The output saving is the per-reply median gap
+   (off − on) multiplied by the number of concise replies actually served — not a hypothetical.
+5. **`./core-engine/calibrate.py` for a same-prompt baseline.** Because normal operation runs
+   everything with `CONCISE=1`, there's often no `CONCISE=0` baseline to compare against. This script
+   sends the *same* prompts both ways (on and off), straight to the API, so the on-vs-off comparison
+   is a true same-prompt measurement instead of an average across different prompts.
+
 ---
 
 ## The engine
