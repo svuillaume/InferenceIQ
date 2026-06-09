@@ -110,6 +110,62 @@ def _fresh_tally():
 
 TALLY = _fresh_tally()
 
+# ── Persistence: keep cumulative tallies across restarts so savings COMPOUND over time ──────────
+# On by default to a JSON file (host-run collectors keep it across restarts; in Docker, mount a
+# volume and/or set IQ_PERSIST_PATH to a path on it). Set IQ_PERSIST_PATH="" to disable.
+PERSIST_PATH = os.getenv("IQ_PERSIST_PATH", "tally.json")
+_COUNTER_KEYS = ("rules", "techniques", "tips", "sources", "routes", "models", "hosts")
+_PLAIN_KEYS = ("opt_runs", "rec_runs", "tokens_saved", "model_tokens", "cache", "cache_gauge",
+               "host_saved", "recent", "series", "t0", "out")
+_save_state = {"t": 0.0}
+
+
+def _save_tally(force=False):
+    """Persist TALLY to disk (atomic). Throttled to ~once/5s unless forced."""
+    if not PERSIST_PATH:
+        return
+    now = time.time()
+    if not force and now - _save_state["t"] < 5:
+        return
+    _save_state["t"] = now
+    try:
+        d = {}
+        for k, v in TALLY.items():
+            if isinstance(v, Counter):
+                d[k] = dict(v)
+            elif k == "routing":
+                r = dict(v); r["pairs"] = dict(v["pairs"]); d[k] = r
+            else:
+                d[k] = v
+        tmp = PERSIST_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            _json.dump(d, f)
+        os.replace(tmp, PERSIST_PATH)
+    except Exception:
+        pass   # never let persistence break ingestion
+
+
+def _load_tally():
+    """Restore a persisted TALLY on startup, so cumulative tokens/$ keep climbing."""
+    if not PERSIST_PATH or not os.path.exists(PERSIST_PATH):
+        return
+    try:
+        with open(PERSIST_PATH) as f:
+            d = _json.load(f)
+    except Exception:
+        return
+    for k in _COUNTER_KEYS:
+        if k in d:
+            TALLY[k] = Counter(d[k])
+    if "routing" in d and isinstance(d["routing"], dict):
+        r = dict(d["routing"]); r["pairs"] = Counter(r.get("pairs", {})); TALLY["routing"] = r
+    for k in _PLAIN_KEYS:
+        if k in d:
+            TALLY[k] = d[k]
+
+
+_load_tally()
+
 # USD per 1M tokens (input, output). Source: claude-api skill pricing table (cached 2026-05).
 PRICING = {
     "claude-opus-4-8":   {"label": "Opus 4.8",   "in": 5.0, "out": 25.0},
@@ -247,6 +303,7 @@ async def api_record(request: Request):
         in_tokens=b.get("in_tokens", 0), cache_read=b.get("cache_read", 0),
         cache_creation=b.get("cache_creation", 0), routed_from=b.get("routed_from", ""),
     )
+    _save_tally()   # throttled; keeps cumulative tokens/$ across restarts
     return JSONResponse({"ok": True})
 
 
@@ -342,6 +399,7 @@ async def api_reset(request: Request):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     global TALLY
     TALLY = _fresh_tally()
+    _save_tally(force=True)   # persist the zeroed state so a restart doesn't restore old totals
     return JSONResponse({"ok": True})
 
 

@@ -64,8 +64,11 @@ cd dashboard && uvicorn collector:app --host 0.0.0.0 --port 8088
   uses async `httpx`. Both POST the same `/api/record` shape and both attach `host`/`user`.
 - **`est()` lives in `optimize.py`** and is imported by the proxy and the hook (one source of
   truth for the chars/4 estimate). Exact counts come from `optimize.count_tokens()`.
-- **Single-process, in-memory dashboard.** `TALLY` resets on restart; no lock, no persistence —
-  a prototype, not horizontally scalable.
+- **Single-process dashboard, now persisted.** `TALLY` is in-memory but saved atomically to
+  `IQ_PERSIST_PATH` (default `tally.json`, throttled ~5s) and reloaded on startup, so cumulative
+  tokens/$ **compound across restarts**. `t0` persists too, so run-rate projections use true
+  wall-clock. Set `IQ_PERSIST_PATH=""` to disable; in Docker, point it at a mounted volume. Still
+  single-process, no lock — a prototype, not horizontally scalable.
 
 ## Critical safety invariants (the proxy fronts an agentic, tool-using client)
 

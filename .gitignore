@@ -19,3 +19,6 @@ sims/
 
 # OS
 .DS_Store
+tally.json
+tally.json.tmp
+dashboard/tally.json
