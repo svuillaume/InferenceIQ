@@ -1,5 +1,5 @@
 """
-InferenceIQ — dashboard collector (standalone)
+FortiInferenceIQ — dashboard collector (standalone)
 
 A pure monitoring service. It does NOT optimize anything itself and imports nothing
 from the rest of the repo — every other surface (CLI optimize, the Claude Code
@@ -453,7 +453,7 @@ async def full():
 SIMPLE_PAGE = r"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>InferenceIQ · before vs after</title>
+<title>FortiInferenceIQ · before vs after</title>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   :root{--bg:#05070c;--card:#0c111a;--card2:#0f151f;--line:#1a2230;--line2:#26313f;--fg:#eef3fa;
@@ -499,7 +499,7 @@ SIMPLE_PAGE = r"""<!DOCTYPE html>
   .foot code{color:var(--accent)}
   .pending{color:var(--amber);font-size:.74rem;margin-top:10px}
 </style></head><body>
-  <div class="brand"><span class="mark"></span><span class="logo">InferenceIQ</span></div>
+  <div class="brand"><span class="mark"></span><span class="logo">FortiInferenceIQ</span></div>
   <div class="sub"><a href="/full">full dashboard →</a></div>
   <div id="app" class="foot">Collecting…</div>
 
@@ -509,14 +509,14 @@ const fmt=n=>Math.round(n).toLocaleString();
 // One gauge: title, before, after, unit-note, ready flag, pending message.
 function gauge(title,before,after,note,ready,pendingMsg){
   if(!ready) return `<div class="g"><div class="gh"><span class="gt">${title}</span><span class="badge zero">—</span></div>
-    <div class="row after"><span class="k">After InferenceIQ</span><span class="v">${fmt(after)}</span></div>
+    <div class="row after"><span class="k">After FortiInferenceIQ</span><span class="v">${fmt(after)}</span></div>
     <div class="pending">${pendingMsg||'baseline pending'}</div></div>`;
   const saved=Math.max(0,before-after), red=before>0?Math.round(saved/before*100):0;
   const afterW=before>0?Math.max(3,Math.round(after/before*100)):100;
   return `<div class="g">
     <div class="gh"><span class="gt">${title}</span><span class="badge${red?'':' zero'}">↓ ${red}%</span></div>
-    <div class="row before"><span class="k">Before InferenceIQ</span><span class="v">${fmt(before)}</span></div>
-    <div class="row after"><span class="k">After InferenceIQ</span><span class="v">${fmt(after)}</span></div>
+    <div class="row before"><span class="k">Before FortiInferenceIQ</span><span class="v">${fmt(before)}</span></div>
+    <div class="row after"><span class="k">After FortiInferenceIQ</span><span class="v">${fmt(after)}</span></div>
     <div class="gbar"><i class="before"></i><i class="after" style="width:${afterW}%"></i></div>
     <div class="glegend"><span>saved ${fmt(saved)}</span><span>${note||''}</span></div></div>`;
 }
@@ -560,7 +560,7 @@ tick();setInterval(tick,2000);
 PAGE = r"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>InferenceIQ · savings</title>
+<title>FortiInferenceIQ · savings</title>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   /* Darker, premium AI-inference theme: near-black canvas, electric-blue→violet signal accents. */
@@ -684,7 +684,7 @@ PAGE = r"""<!DOCTYPE html>
 </style></head><body>
 
 <header>
-  <span class="logo"><span class="mark"></span><span class="name">InferenceIQ</span></span>
+  <span class="logo"><span class="mark"></span><span class="name">FortiInferenceIQ</span></span>
   <span class="tagline">AI inference cost optimization</span>
   <span class="pill" id="tzpill" style="display:none"></span>
   <span class="live" id="livepill"><span class="dot"></span> <span id="modetxt">live</span></span>
@@ -769,11 +769,11 @@ PAGE = r"""<!DOCTYPE html>
     <div class="panel"><h2>Where the savings come from <span class="hint" id="roi-lvl">at 15 devs</span></h2><div id="roi-levers"></div></div>
     <div class="panel"><h2>Savings over time <span class="hint" id="roi-projlvl">recurring · tokens &amp; $</span></h2><div id="roi-proj"></div></div>
   </div>
-  <div class="panel full"><h2>Model cost comparison <span class="hint">5 devs Claude Code · Opus 4.8 vs Sonnet 4.6 vs Haiku 4.5 · baseline → with InferenceIQ</span>
-      <span class="help" data-help="<b>Model cost comparison</b> — monthly Claude Code spend per team size on each model tier, baseline (strike-through) → with InferenceIQ. Same per-dev token volume (~45M in / 2.5M out per dev/mo); only the model price changes. Choosing a cheaper tier AND running InferenceIQ compound.">i</span></h2>
+  <div class="panel full"><h2>Model cost comparison <span class="hint">5 devs Claude Code · Opus 4.8 vs Sonnet 4.6 vs Haiku 4.5 · baseline → with FortiInferenceIQ</span>
+      <span class="help" data-help="<b>Model cost comparison</b> — monthly Claude Code spend per team size on each model tier, baseline (strike-through) → with FortiInferenceIQ. Same per-dev token volume (~45M in / 2.5M out per dev/mo); only the model price changes. Choosing a cheaper tier AND running FortiInferenceIQ compound.">i</span></h2>
     <div id="roi-models"></div></div>
-  <div class="panel full"><h2>Subscription plans vs API rates <span class="hint">Pro · Max 5x · Max 20x allowance priced at Opus/Sonnet/Haiku API rates → with InferenceIQ</span>
-      <span class="help" data-help="<b>Subscription plans vs API rates</b> — what each plan's monthly token allowance would cost if billed at API rates per model tier (strike-through), then −reduction% with InferenceIQ.<br><span class='f'>allowance = 5-hour window cap × ~44 windows/mo (Pro 17.6k · Max 5x 88k · Max 20x 220k per window); priced input-heavy (~45M in / 2.5M out ratio); reduction = concise + cache + routing</span>">i</span></h2>
+  <div class="panel full"><h2>Subscription plans vs API rates <span class="hint">Pro · Max 5x · Max 20x allowance priced at Opus/Sonnet/Haiku API rates → with FortiInferenceIQ</span>
+      <span class="help" data-help="<b>Subscription plans vs API rates</b> — what each plan's monthly token allowance would cost if billed at API rates per model tier (strike-through), then −reduction% with FortiInferenceIQ.<br><span class='f'>allowance = 5-hour window cap × ~44 windows/mo (Pro 17.6k · Max 5x 88k · Max 20x 220k per window); priced input-heavy (~45M in / 2.5M out ratio); reduction = concise + cache + routing</span>">i</span></h2>
     <div id="roi-plans"></div>
     <div class="x" style="margin-top:10px;color:var(--dim);font-size:.72rem">Plan prices: Pro $20 · Max 5x $100 · Max 20x $200 /mo. Allowance from the 5-hour rolling window cap × ~44 usable windows/mo; a flat plan is one shared bucket, so the model tiers show what that usage would cost at API rates.</div></div>
 </section>
@@ -903,7 +903,7 @@ function renderROI(o){
     kpi(Math.round(c.red*100)+'%','Cost reduction'+H('roiRed'),`${usd(c.base)} → ${usd(c.opt)} /mo`,'accent'));
   // scenario comparison table — Saved/mo is the hero column
   const sizes=[5,15,25,50];
-  set('roi-table',`<table><thead><tr><th>Team</th><th>Spend now / mo</th><th>With InferenceIQ / mo</th><th>💰 Saved / mo</th><th>Saved / yr</th><th>Less</th></tr></thead><tbody>`+
+  set('roi-table',`<table><thead><tr><th>Team</th><th>Spend now / mo</th><th>With FortiInferenceIQ / mo</th><th>💰 Saved / mo</th><th>Saved / yr</th><th>Less</th></tr></thead><tbody>`+
     sizes.map(n=>{const t=teamCalc(n,o);const hl=n===sz?' style="background:#6ea8fe14"':'';
       return `<tr${hl}><td><b>${n} devs</b></td><td class="c">${usd(t.base)}</td><td>${usd(t.opt)}</td>
         <td class="green"><b style="font-size:.95rem">${usd(t.saved)}</b></td><td class="green">${usd(t.saved*12)}</td><td class="c">${Math.round(t.red*100)}%</td></tr>`}).join('')+`</tbody></table>`);
@@ -915,7 +915,7 @@ function renderROI(o){
   set('roi-proj',`<table><thead><tr><th>Horizon</th><th>💰 $ saved</th><th>Tokens saved</th></tr></thead><tbody>`+
     horizons.map(([lbl,m])=>`<tr><td><b>${lbl}</b></td><td class="green"><b>${usd(c.saved*m)}</b></td><td class="c">${k(c.tokSaved*m)}</td></tr>`).join('')+`</tbody></table>`);
 
-  // model cost comparison — same per-dev usage priced on each tier, baseline → with InferenceIQ
+  // model cost comparison — same per-dev usage priced on each tier, baseline → with FortiInferenceIQ
   const tiers=[['claude-opus-4-8','Opus 4.8'],['claude-sonnet-4-6','Sonnet 4.6'],['claude-haiku-4-5','Haiku 4.5']];
   const teams=[5,10,15,20];
   set('roi-models',`<table><thead><tr><th>Team</th>`+tiers.map(t=>`<th>${t[1]} / mo</th>`).join('')+`</tr></thead><tbody>`+
@@ -926,7 +926,7 @@ function renderROI(o){
         return `<td><span class="c" style="text-decoration:line-through">${usd(cost)}</span> <b class="green">${usd(opt)}</b><div class="x">save ${usd(cost-opt)}/mo · ${usd((cost-opt)*12)}/yr</div></td>`;
       }).join('')+`</tr>`;}).join('')+`</tbody></table>`);
 
-  // subscription plans priced at API rates → with InferenceIQ. A flat plan is one shared,
+  // subscription plans priced at API rates → with FortiInferenceIQ. A flat plan is one shared,
   // model-agnostic bucket; the tiers show what that bucket's tokens would cost at API rates.
   const inF=IN_DEV/(IN_DEV+OUT_DEV), outF=OUT_DEV/(IN_DEV+OUT_DEV);     // input-heavy coding split
   const WPM=44;                                                         // ~usable 5h windows / month
@@ -966,8 +966,8 @@ async function tick(){
   const inUSD=(d.tokens_saved||0)/1e6*price.in;
   const outUSD=(o.out_tokens_saved||0)/1e6*price.out;
   const routing=d.routing||{}, routeUSD=routing.usd||0;       // server-priced cross-model delta (REAL)
-  // Prompt caching is a native Anthropic feature (not created by InferenceIQ), so its discount is
-  // intentionally NOT counted as savings here — only levers InferenceIQ actually applies.
+  // Prompt caching is a native Anthropic feature (not created by FortiInferenceIQ), so its discount is
+  // intentionally NOT counted as savings here — only levers FortiInferenceIQ actually applies.
   const totUSD=inUSD+outUSD+routeUSD;
   const machines=(d.by_host||[]).filter(h=>h.host&&h.host!=='—').length;
 
@@ -998,9 +998,9 @@ async function tick(){
        </div>`
     :`<div class="green" style="font-size:2.2rem;font-weight:800;margin:6px 0 2px">Brevity engine ready</div>
       <div class="empty" style="font-size:.9rem">Need replies in BOTH buckets to measure: send prompts with concise mode on (proxy <code>CONCISE=1</code> or the hook) and some without. ${cn?`Have ${cn} concise, ${o.normal_n||0} normal.`:''}</div>`;
-  set('brevity-hero',`<div style="font-size:.74rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">💬 Output trimming · the lever InferenceIQ controls${H('reply')}</div>`+bBody);
+  set('brevity-hero',`<div style="font-size:.74rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">💬 Output trimming · the lever FortiInferenceIQ controls${H('reply')}</div>`+bBody);
 
-  // OVERVIEW: chart + where savings come from (levers InferenceIQ actually applies)
+  // OVERVIEW: chart + where savings come from (levers FortiInferenceIQ actually applies)
   set('chart',chart(d.series||[],'saved','ga','#46d39a','cumulative tokens saved'));
   set('chart-usd',chart(d.series||[],'usd','gu','#6ea8fe','cumulative $ saved',v=>'$'+(v>=1000?Math.round(v).toLocaleString():v.toFixed(2))));
   const lever=(icon,t,v,x,c)=>`<div class="mini"><div class="t">${icon} ${t}</div><div class="b ${c||''}">${v}</div><div class="x">${x}</div></div>`;
