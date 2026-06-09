@@ -500,7 +500,7 @@ SIMPLE_PAGE = r"""<!DOCTYPE html>
   .pending{color:var(--amber);font-size:.74rem;margin-top:10px}
 </style></head><body>
   <div class="brand"><span class="mark"></span><span class="logo">InferenceIQ</span></div>
-  <div class="sub">Tokens <b>before vs after</b> InferenceIQ — input &amp; output · <a href="/full">full dashboard →</a></div>
+  <div class="sub"><a href="/full">full dashboard →</a></div>
   <div id="app" class="foot">Collecting…</div>
 
 <script>
