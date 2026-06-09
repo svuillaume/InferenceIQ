@@ -50,10 +50,6 @@ design was **broken for an agentic client like Claude Code**:
 - context compression **dropped messages**, orphaning `tool_result` from `tool_use` → HTTP 400s;
 - filler stripping **silently mutated** prompts anywhere in the conversation.
 
-That original `proxy.py` was retired and **deleted**. The project pivoted to a **safe optimizer**:
-only ever touch genuine user prose, never synthesize responses, never drop messages, and lean on
-Anthropic's own prompt caching (already ~90% off repeated context) instead of fighting it.
-
 ---
 
 ## Techniques used
