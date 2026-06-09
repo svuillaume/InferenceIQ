@@ -5,11 +5,11 @@ and shows the savings on a live dashboard (UI brand: **FortiInferenceIQ**).
 
 ## How it works
 
-- Strips filler from your prompt (meaning-preserving) and **nudges shorter replies** — the big lever,
-  since output tokens cost ~5× input.
-- Optionally **routes** simple requests to cheaper models and serves a **semantic cache** for repeated
-  non-agentic queries.
-- Every surface reports token + $ savings to **one dashboard** (tagged per machine).
+* Strips filler from prompts while preserving meaning
+* Encourages shorter model outputs (output tokens are ~5× more expensive than input tokens)
+* Routes simple requests to cheaper models when possible
+* Uses semantic caching for repeated, non-agentic queries
+* Tracks token and cost savings across all surfaces in a unified per-system dashboard
 
 You apply it two ways: a **Claude Code hook/plugin** (works on any login, incl. Pro/Max OAuth) and an
 in-path **proxy** (API-key only; measures real output savings). It never breaks Claude Code's tool loop.
