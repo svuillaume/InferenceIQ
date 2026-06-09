@@ -520,6 +520,19 @@ function gauge(title,before,after,note,ready,pendingMsg){
     <div class="gbar"><i class="before"></i><i class="after" style="width:${afterW}%"></i></div>
     <div class="glegend"><span>saved ${fmt(saved)}</span><span>${note||''}</span></div></div>`;
 }
+// Productivity arc gauge: a token reduction R means the same budget does 1/(1-R) work.
+function prodGauge(mult,prodPct){
+  const frac=Math.max(0,Math.min(1,(mult-1)));     // 1.0x..2.0x → 0..1 of the arc
+  const len=(frac*100).toFixed(1);
+  return `<svg viewBox="0 0 220 134" style="width:min(300px,84vw);height:auto;display:block;margin:6px auto 2px">
+    <defs><linearGradient id="pg" x1="0" x2="1"><stop offset="0" stop-color="#2fd6a6"/><stop offset="1" stop-color="#5b9bff"/></linearGradient></defs>
+    <path d="M20,114 A90,90 0 0 1 200,114" fill="none" stroke="#101826" stroke-width="16" stroke-linecap="round"/>
+    <path d="M20,114 A90,90 0 0 1 200,114" fill="none" stroke="url(#pg)" stroke-width="16" stroke-linecap="round" pathLength="100" stroke-dasharray="${len} 100"/>
+    <text x="110" y="92" text-anchor="middle" font-size="40" font-weight="800" fill="#eef3fa">×${mult.toFixed(2)}</text>
+    <text x="110" y="120" text-anchor="middle" font-size="14" fill="#2fd6a6" font-weight="700">+${prodPct}% throughput</text>
+    <text x="16" y="130" font-size="10" fill="#4d596b">1×</text><text x="196" y="130" font-size="10" fill="#4d596b">2×</text>
+  </svg>`;
+}
 async function tick(){
   let d;try{d=await(await fetch('/api/stats')).json()}catch{return}
   const o=d.output||{};
@@ -537,12 +550,14 @@ async function tick(){
   const tBefore=(inReady?inBefore:0)+(outReady?outBefore:0);
   const tAfter=(inReady?inAfter:0)+(outReady?outAfter:0);
   const gain=tBefore>0?Math.round((tBefore-tAfter)/tBefore*100):0;
+  // Same work on fewer tokens → more throughput per token budget: ×1/(1-R).
+  const mult=gain>0&&gain<100?1/(1-gain/100):1, prodPct=Math.round((mult-1)*100);
   $('app').className='';
   $('app').innerHTML=`
     <div class="hero">
-      <div class="lbl">Overall token reduction · ${fmt(events)} events</div>
-      <div class="big">${gain}%</div>
-      <div class="pct"><b>${fmt(Math.max(0,tBefore-tAfter))}</b> tokens saved · ${fmt(tBefore)} → ${fmt(tAfter)}</div>
+      <div class="lbl">Productivity with FortiInferenceIQ · ${fmt(events)} events</div>
+      ${prodGauge(mult,prodPct)}
+      <div class="pct"><b style="color:var(--green)">${gain}%</b> fewer tokens · same work for less → <b style="color:var(--green)">×${mult.toFixed(2)}</b> throughput · <b>${fmt(Math.max(0,tBefore-tAfter))}</b> saved</div>
     </div>
     <div class="gauges">
       ${gauge('Input tokens (prompts)',inBefore,inAfter,`${fmt(inSaved)} filler trimmed`,inReady,'no prompts measured yet')}
