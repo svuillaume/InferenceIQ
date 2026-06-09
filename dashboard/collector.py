@@ -498,8 +498,9 @@ PAGE = r"""<!DOCTYPE html>
     <div class="hero" id="sum-tok" style="margin-bottom:0"></div>
   </div>
   <div class="panel full">
-    <h2>💰 Money saved <span class="hint">priced on Opus 4.8 · currently → projected</span></h2>
+    <h2>💰 Money saved <span class="hint">priced on Opus 4.8 · from the tokens actually trimmed</span></h2>
     <div class="hero" id="sum-usd" style="margin-bottom:0"></div>
+    <div id="sum-extra" style="margin-top:14px;color:var(--muted);font-size:.78rem;line-height:1.6"></div>
   </div>
 </section>
 
@@ -819,23 +820,30 @@ async function tick(){
   set('roi-live',liveHead+liveBody);
 
   // SUMMARY tab — measured-so-far + run-rate projection to 30 / 90 / 365 days.
-  // Tokens and $ share ONE basis: tokens = trimmed (in+out) + prompt-cache reads (the token base
-  // behind the cache $); $ = totUSD (trim + routing + cache), matching the Overview "Total saved".
+  // ONE honest basis: "tokens saved" = tokens ACTUALLY trimmed (input filler + concise output),
+  // and "$ saved" = those exact tokens priced at the model. Prompt-cache reads are NOT trimmed
+  // tokens (they're still sent, just discounted), and routing saves $ without removing tokens —
+  // so both are surfaced SEPARATELY below instead of inflating the headline.
   {
     const DAY=86400, ready=el>=120;                          // need ~2 min for a stable rate
-    const totTok=trimTok+(o.cache_read_tokens||0);           // all tokens behind the $ figure
-    const rateU=el>0?totUSD/el:0, rateT=el>0?totTok/el:0;
+    const trimUSD=inUSD+outUSD;                              // $ from exactly the trimmed tokens
+    const rateU=el>0?trimUSD/el:0, rateT=el>0?trimTok/el:0;
     const HZ=[['30 days',30],['90 days',90],['1 year',365]];
     const sc=(l,v,s,hot)=>`<div class="kpi"><div class="l">${l}</div><div class="v ${hot?'green':''}">${v}</div><div class="s">${s}</div></div>`;
-    const tsub=`${k(trimTok)} trimmed + ${k(o.cache_read_tokens||0)} cached`;
-    let tk=sc('Currently',k(totTok),tsub,totTok>0);
-    for(const [lbl,dy] of HZ){const p=ready?totTok+rateT*dy*DAY:null;
+    const tsub=`${k(d.tokens_saved||0)} in + ${k(o.out_tokens_saved||0)} out`;
+    let tk=sc('Currently',k(trimTok),tsub,trimTok>0);
+    for(const [lbl,dy] of HZ){const p=ready?trimTok+rateT*dy*DAY:null;
       tk+=sc(lbl,p==null?'—':k(p),ready?'projected':'~2 min of data needed');}
     set('sum-tok',tk);
-    let um=sc('Currently',usd(totUSD),'trim + routing + cache',totUSD>0);
-    for(const [lbl,dy] of HZ){const p=ready?totUSD+rateU*dy*DAY:null;
+    let um=sc('Currently',usd(trimUSD),'input + output trim',trimUSD>0);
+    for(const [lbl,dy] of HZ){const p=ready?trimUSD+rateU*dy*DAY:null;
       um+=sc(lbl,p==null?'—':usd(p),ready?'projected':'~2 min of data needed');}
     set('sum-usd',um);
+    // Real $, but NOT trimmed tokens — kept out of the headline on purpose.
+    set('sum-extra',
+      `Separately (real $, but these are <b>not</b> tokens removed): `+
+      `prompt-cache discount <b class="violet">${usd(cacheUSD)}</b> on ${k(o.cache_read_tokens||0)} cached reads · `+
+      `model routing <b class="violet">${usd(routeUSD)}</b>. These appear in the Overview "Total saved".`);
   }
 
   // TEAM ROI
