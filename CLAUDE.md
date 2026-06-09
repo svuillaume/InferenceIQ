@@ -96,6 +96,7 @@ core-engine/                           the shared core (importable modules; CLI 
   optimize.py                      mechanical core + CLI; est(); host-tagged report() (privacy-gated)
   router.py                        deterministic intent → model routing (Haiku/Sonnet/Opus); no API call
   semcache.py                      3-layer semantic cache (exact + fastembed vector + LLM fallback); non-agentic only
+  calibrate.py                     same-prompt brevity gauge: randomly samples prompts, runs each CONCISE=0 vs =1, reports real output_tokens (--every N to repeat)
 proxy/                             the in-path proxy surface
   intercept.py                     ⚡ Auto proxy (:8082): cache + optimize + CONCISE + model routing; imports ../core-engine
   Dockerfile                       proxy image (copies core-engine/ + proxy/intercept.py; PYTHONPATH=/app/core-engine)
