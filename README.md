@@ -584,8 +584,8 @@ through the proxy with an API key).
 | all reporters | `IQ_REPORT_TEXT` | `0` (default) reports **counts + host only**; `1` also sends prompt text (before/after) to the dashboard. Keep `0` for a remote/shared collector |
 | dashboard | `IQ_TZ` / `TZ` | pin the feed timezone (e.g. `America/Toronto`); empty = auto-detect from the host's public IP (non-blocking, background) |
 | proxy | `COUNT_MODE` | dashboard savings counter: `estimate` (instant, chars/4) · `exact` (background `count_tokens`, no added latency, uses the caller's key) |
-| proxy | `CONCISE` | `1` (compose default) appends a brevity nudge to the last user turn → shorter replies; `0` to disable |
-| proxy | `CONCISE_NOTE` | override the brevity directive text |
+| proxy | `CONCISE` | `1` (compose default) appends the brevity nudge to the last user turn → shorter replies and the dashboard's `concise` bucket fills; `0` disables it (the proxy stops touching the reply, and real traffic no longer feeds the concise bucket). **Toggle:** `CONCISE=0 docker compose up -d intercept` (runtime); make it permanent by setting `CONCISE=0` in `.env` or `compose.yml`. **Note:** since the nudge is appended to the last user turn, it is visible in that turn — under Claude Code the hook already supplies brevity, so you can run the proxy with `CONCISE=0` and still get short replies without the appended text |
+| proxy | `CONCISE_NOTE` | override the brevity directive text (applies to the proxy append **and** `calibrate.py`) |
 | proxy | `DASHBOARD_PUBLIC_URL` | where `/dashboard` redirects a browser (default `http://3.96.147.26:8088`) |
 | all reporters | `INFERENCEIQ_DASHBOARD` | where to report runs (default `http://3.96.147.26:8088`; `http://dashboard:8088` in compose; a remote URL for central collection; `off` disables) |
 | dashboard + reporters | `IQ_TOKEN` | shared secret for the **write** endpoints (`/api/record`, `/api/reset`, `/api/tz`). Empty (default) = open. Set it on the collector **and** on every reporter (same value) before exposing the dashboard publicly. Reads (`/api/stats`, `/`) stay open |
