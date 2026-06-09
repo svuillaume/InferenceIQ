@@ -14,7 +14,7 @@ and shows the savings on a live dashboard (UI brand: **FortiInferenceIQ**).
 
 # Archicture - Mode
 
-<img width="1780" height="900" alt="image" src="https://github.com/user-attachments/assets/cba25f8a-b392-4382-ac2f-a7bec44685da" />
+<img width="991" height="197" alt="image" src="https://github.com/user-attachments/assets/62d89474-ef4e-4294-b00a-617690a42d5f" />
 
 
 ## Components
