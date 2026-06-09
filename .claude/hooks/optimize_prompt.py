@@ -25,9 +25,9 @@ REPO = os.environ.get(
     "OPTIMIZER_DIR",
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
 )
-# optimize.py now lives in <repo>/engines. Be tolerant of OPTIMIZER_DIR pointing at either the
-# repo root or the engines dir itself, so both the local hook and the plugin resolve it.
-sys.path.insert(0, os.path.join(REPO, "engines"))
+# optimize.py now lives in <repo>/core-engine. Be tolerant of OPTIMIZER_DIR pointing at either the
+# repo root or the core-engine dir itself, so both the local hook and the plugin resolve it.
+sys.path.insert(0, os.path.join(REPO, "core-engine"))
 sys.path.insert(0, REPO)
 try:
     from optimize import optimize, report, est   # pure-stdlib path; safe under any python3

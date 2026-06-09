@@ -14,7 +14,7 @@ live dashboard. It has **one shared core** and **four thin surfaces** around it:
     `count_tokens`, the shared `est()` estimate, and the stdlib `report()` that POSTs each run to
     the dashboard (tagged with this machine's `host`/`user`). It's also a CLI.
 - **Surfaces (the "doers")**
-  - **CLI** — `./optimize.py "…"`.
+  - **CLI** — `./core-engine/optimize.py "…"`.
   - **Claude Code hook** — `.claude/hooks/optimize_prompt.py`, a `UserPromptSubmit` hook. Single
     auto mode: injects a tighter equivalent phrasing **and** a brevity directive as
     `additionalContext` (it cannot replace typed text, so the input cut is advisory/measured; the
@@ -44,7 +44,7 @@ docker compose up -d --build
 cd dashboard && uvicorn collector:app --host 0.0.0.0 --port 8088
 
 # CLI (local; exact counts need ANTHROPIC_API_KEY):
-./engines/optimize.py "Hey could you please just clean this up?"
+./core-engine/optimize.py "Hey could you please just clean this up?"
 
 # Drive Claude Code through the proxy:
 ./iq                                      # or: ANTHROPIC_BASE_URL=http://localhost:8082 claude
@@ -89,13 +89,13 @@ and mutating arbitrary turns. Do not reintroduce any of that. "Safe for Claude C
 ## File map
 
 ```
-engines/                           the shared core (importable modules; CLI lives here too)
+core-engine/                           the shared core (importable modules; CLI lives here too)
   optimize.py                      mechanical core + CLI; est(); host-tagged report() (privacy-gated)
   router.py                        deterministic intent → model routing (Haiku/Sonnet/Opus); no API call
   semcache.py                      3-layer semantic cache (exact + fastembed vector + LLM fallback); non-agentic only
 proxy/                             the in-path proxy surface
-  intercept.py                     ⚡ Auto proxy (:8082): cache + optimize + CONCISE + model routing; imports ../engines
-  Dockerfile                       proxy image (copies engines/ + proxy/intercept.py; PYTHONPATH=/app/engines)
+  intercept.py                     ⚡ Auto proxy (:8082): cache + optimize + CONCISE + model routing; imports ../core-engine
+  Dockerfile                       proxy image (copies core-engine/ + proxy/intercept.py; PYTHONPATH=/app/core-engine)
   requirements-proxy.txt           proxy image deps only (fastapi · uvicorn · httpx — no anthropic)
 dashboard/                         the standalone monitor surface
   collector.py                     monitor (:8088): per-host, models-used, routing; modern UI
@@ -108,9 +108,9 @@ iq                                 launcher: compose up + claude via the proxy
 demo.sh                            drives sample prompts through the proxy to populate the dashboard
 ```
 
-Layout: **engines/** (shared core) · **proxy/** (in-path surface) · **dashboard/** (monitor). The
-proxy imports the engine modules from `../engines` (a `sys.path` shim locally; `PYTHONPATH=/app/engines`
-in the image). The hook resolves `optimize.py` from `engines/` too (`OPTIMIZER_DIR` or auto-detect).
+Layout: **core-engine/** (shared core) · **proxy/** (in-path surface) · **dashboard/** (monitor). The
+proxy imports the engine modules from `../core-engine` (a `sys.path` shim locally; `PYTHONPATH=/app/core-engine`
+in the image). The hook resolves `optimize.py` from `core-engine/` too (`OPTIMIZER_DIR` or auto-detect).
 
 ## Model routing & privacy (added)
 

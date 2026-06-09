@@ -4,7 +4,7 @@
 services:
   intercept:                       # ⚡ Auto optimizing proxy on :8082
     build:
-      context: .                   # repo root, so the image can copy engines/ + proxy/
+      context: .                   # repo root, so the image can copy core-engine/ + proxy/
       dockerfile: proxy/Dockerfile
     command: uvicorn intercept:app --host 0.0.0.0 --port 8082
     ports:
