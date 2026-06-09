@@ -121,13 +121,12 @@ _save_state = {"t": 0.0}
 
 
 def _save_tally(force=False):
-    """Persist TALLY to disk (atomic). Throttled to ~once/5s unless forced."""
+    """Persist TALLY to disk (atomic) on every event — the store is small, so we never
+    throttle: throttling + an ungraceful restart loses the most recent savings (they'd
+    never reach disk), which breaks the cumulative/compounding total."""
     if not PERSIST_PATH:
         return
-    now = time.time()
-    if not force and now - _save_state["t"] < 5:
-        return
-    _save_state["t"] = now
+    _save_state["t"] = time.time()
     try:
         d = {}
         for k, v in TALLY.items():
@@ -165,6 +164,13 @@ def _load_tally():
 
 
 _load_tally()
+
+
+@app.on_event("shutdown")
+def _flush_on_shutdown():
+    """Final save on graceful stop (e.g. SIGTERM during a redeploy) so nothing is lost."""
+    _save_tally(force=True)
+
 
 # USD per 1M tokens (input, output). Source: claude-api skill pricing table (cached 2026-05).
 PRICING = {
