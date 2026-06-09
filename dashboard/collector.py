@@ -530,8 +530,11 @@ PAGE = r"""<!DOCTYPE html>
   </div>
   <div class="grid">
     <div class="panel"><h2>Where the savings come from <span class="hint" id="roi-lvl">at 15 devs</span></h2><div id="roi-levers"></div></div>
-    <div class="panel"><h2>Cumulative projection <span class="hint">recurring run-rate</span></h2><div class="three" id="roi-proj"></div></div>
+    <div class="panel"><h2>Savings over time <span class="hint" id="roi-projlvl">recurring · tokens &amp; $</span></h2><div id="roi-proj"></div></div>
   </div>
+  <div class="panel full"><h2>Model cost comparison <span class="hint">5 devs Claude Code · Opus 4.8 vs Sonnet 4.6 vs Haiku 4.5 · baseline → with InferenceIQ</span>
+      <span class="help" data-help="<b>Model cost comparison</b> — monthly Claude Code spend per team size on each model tier, baseline (strike-through) → with InferenceIQ. Same per-dev token volume (~45M in / 2.5M out per dev/mo); only the model price changes. Choosing a cheaper tier AND running InferenceIQ compound.">i</span></h2>
+    <div id="roi-models"></div></div>
 </section>
 
 <section class="page" data-p="activity">
@@ -629,12 +632,16 @@ function chart(series){
 }
 
 // Team ROI model — N devs, 6h/day, ~22 days/mo, ~$300/dev/mo baseline (morphllm.com/ai-coding-costs).
+// Per-dev monthly token volume (input-heavy, prompt-cached). Tuned so Opus 4.8 ≈ the $300/dev baseline,
+// which lets us also price the SAME usage on cheaper tiers for the model-cost comparison.
+const IN_DEV=45e6, OUT_DEV=2.5e6;
 function teamCalc(n,o){
   const base=2.27*6*22*n;                                   // monthly baseline spend
   const concise=(o&&o.pct_shorter)?Math.max(.18,Math.min(.35,o.pct_shorter/100*.45)):.25;
   const lv=[['💬 Concise replies',concise],['⚡ Semantic cache',.15],['🔀 Model routing',.12],['📦 Prompt caching',.08]];
   const red=lv.reduce((s,l)=>s+l[1],0);
-  return {n,base,red,saved:base*red,opt:base*(1-red),lv};
+  const tokMo=(IN_DEV+OUT_DEV)*n;                           // baseline tokens / mo
+  return {n,base,red,saved:base*red,opt:base*(1-red),lv,tokMo,tokSaved:tokMo*red};
 }
 function renderROI(o){
   const sz=+($('roi-size').value||15), c=teamCalc(sz,o);
@@ -659,12 +666,25 @@ function renderROI(o){
         <td class="green"><b style="font-size:.95rem">${usd(t.saved)}</b></td><td class="green">${usd(t.saved*12)}</td><td class="c">${Math.round(t.red*100)}%</td></tr>`}).join('')+`</tbody></table>`);
   // lever breakdown at selected size
   set('roi-levers',c.lv.map(l=>`<div style="display:flex;justify-content:space-between;font-size:.78rem;margin:9px 0 4px"><span>${l[0]}</span><span class="c">${usd(c.base*l[1])}/mo · ${Math.round(l[1]*100)}%</span></div><div class="bar"><i style="width:${Math.round(l[1]/c.red*100)}%"></i></div>`).join(''));
-  // cumulative projection 1 / 3 / 5 yr
-  const proj=(yr)=>`<div class="mini"><div class="t">${yr}-year cumulative</div><div class="b green">${usd(c.saved*12*yr)}</div><div class="x">at ${sz} devs · recurring</div></div>`;
-  set('roi-proj',proj(1)+proj(3)+proj(5));
+  // savings over time — 1mo / 6mo / 1yr / 2yr / 3yr, cumulative $ AND tokens saved
+  $('roi-projlvl').textContent='cumulative at '+sz+' devs';
+  const horizons=[['1 month',1],['6 months',6],['1 year',12],['2 years',24],['3 years',36]];
+  set('roi-proj',`<table><thead><tr><th>Horizon</th><th>💰 $ saved</th><th>Tokens saved</th></tr></thead><tbody>`+
+    horizons.map(([lbl,m])=>`<tr><td><b>${lbl}</b></td><td class="green"><b>${usd(c.saved*m)}</b></td><td class="c">${k(c.tokSaved*m)}</td></tr>`).join('')+`</tbody></table>`);
+
+  // model cost comparison — same per-dev usage priced on each tier, baseline → with InferenceIQ
+  const tiers=[['claude-opus-4-8','Opus 4.8'],['claude-sonnet-4-6','Sonnet 4.6'],['claude-haiku-4-5','Haiku 4.5']];
+  const teams=[5,10,15,20];
+  set('roi-models',`<table><thead><tr><th>Team</th>`+tiers.map(t=>`<th>${t[1]} / mo</th>`).join('')+`</tr></thead><tbody>`+
+    teams.map(n=>{const rc=teamCalc(n,o);const hl=n===sz?' style="background:#6ea8fe14"':'';
+      return `<tr${hl}><td><b>${n} devs</b></td>`+tiers.map(([id,lbl])=>{
+        const pr=(LASTP&&LASTP[id])||{in:5,out:25};
+        const cost=(IN_DEV*pr.in+OUT_DEV*pr.out)/1e6*n, opt=cost*(1-rc.red);
+        return `<td><span class="c" style="text-decoration:line-through">${usd(cost)}</span> <b class="green">${usd(opt)}</b><div class="x">save ${usd(cost-opt)}/mo · ${usd((cost-opt)*12)}/yr</div></td>`;
+      }).join('')+`</tr>`;}).join('')+`</tbody></table>`);
 }
 
-let LASTO={};
+let LASTO={}, LASTP={};
 async function tick(){
   let d;try{d=await(await fetch('/api/stats')).json()}catch{return}
   const o=d.output||{}, cache=d.cache||{}, cg=d.cache_gauge||{};
@@ -680,7 +700,7 @@ async function tick(){
   $('modetxt').textContent=demo?'Demo':'live';
 
   // pricing selector
-  const P=d.pricing||{}, sel=$('model');
+  const P=d.pricing||{}, sel=$('model'); LASTP=P;
   if(sel&&!sel.dataset.init&&Object.keys(P).length){
     sel.innerHTML=Object.entries(P).map(([id,p])=>`<option value="${id}">${p.label} — $${p.in}/$${p.out} per 1M</option>`).join('');
     sel.dataset.init='1';sel.onchange=tick;
