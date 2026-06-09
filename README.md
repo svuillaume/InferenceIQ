@@ -3,7 +3,7 @@
 Makes Claude prompts cheaper to send and replies cheaper to receive — **without changing meaning** —
 and shows the savings on a live dashboard (UI brand: **FortiInferenceIQ**).
 
-## How it works
+## How it works - Prompt Injection
 
 * Strips filler from prompts while preserving meaning
 * Encourages shorter model outputs (output tokens are ~5× more expensive than input tokens)
