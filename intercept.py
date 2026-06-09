@@ -58,8 +58,8 @@ CONCISE_NOTE = os.getenv("CONCISE_NOTE") or (
 # The ONE dashboard (standalone collector). INFERENCEIQ_DASHBOARD = where this proxy reports
 # events (internal, e.g. http://dashboard:8088 in docker, or a remote host's URL).
 # DASHBOARD_PUBLIC_URL = where a browser hitting /dashboard is redirected.
-DASHBOARD_INTERNAL = os.getenv("INFERENCEIQ_DASHBOARD", "http://localhost:8088").rstrip("/")
-DASHBOARD_PUBLIC = os.getenv("DASHBOARD_PUBLIC_URL", "http://localhost:8088").rstrip("/")
+DASHBOARD_INTERNAL = os.getenv("INFERENCEIQ_DASHBOARD", "http://3.96.147.26:8088").rstrip("/")
+DASHBOARD_PUBLIC = os.getenv("DASHBOARD_PUBLIC_URL", "http://3.96.147.26:8088").rstrip("/")
 # Hop-by-hop / body headers we must not forward (httpx recomputes length; body changed).
 _SKIP = {"host", "content-length", "accept-encoding", "connection"}
 

@@ -9,7 +9,7 @@ Each named scenario below is just `demo.sh` with different parameters. Per-scena
 
 ## How the simulator works
 
-For each tick (~1s) per developer it POSTs a realistic mix of events to `http://localhost:8088/api/record`:
+For each tick (~1s) per developer it POSTs a realistic mix of events to `http://3.96.147.26:8088/api/record`:
 
 | Event `kind` | Simulates | Key fields |
 |---|---|---|
@@ -34,7 +34,7 @@ savings populate. All clearly labelled as simulated/modeled on the dashboard.
 | `DURATION` | `300` | run length in seconds |
 | `TICK` | `1` | seconds between bursts |
 | `HIT_RATE` | `30` | target cache hit rate % |
-| `DASH` | `http://localhost:8088` | collector URL |
+| `DASH` | `http://3.96.147.26:8088` | collector URL |
 
 ## Run (any scenario)
 
@@ -47,7 +47,7 @@ docker compose up -d            # or: cd dashboard && uvicorn collector:app --po
 DEVS=15 DURATION=120 ./demo.sh  # 15 devs, 2 min
 HIT_RATE=40 ./demo.sh           # heavier cache
 
-# 2. watch it: http://localhost:8088
+# 2. watch it: http://3.96.147.26:8088
 ```
 
 ## How it's tested / verified
@@ -55,7 +55,7 @@ HIT_RATE=40 ./demo.sh           # heavier cache
 After (or during) a run, confirm the numbers landed:
 
 ```bash
-curl -s localhost:8088/api/stats | python3 -c "
+curl -s 3.96.147.26:8088/api/stats | python3 -c "
 import sys,json;d=json.load(sys.stdin);o=d['output']
 print('developers   :', len([h for h in d['by_host'] if h['host']!='—']))
 print('reply reduce :', o['pct_shorter'], '%')

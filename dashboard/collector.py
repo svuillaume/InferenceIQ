@@ -486,12 +486,24 @@ PAGE = r"""<!DOCTYPE html>
 <div class="hero" id="hero"></div>
 
 <nav>
-  <button class="tab on" data-t="overview">Overview</button>
+  <button class="tab on" data-t="summary">Summary</button>
+  <button class="tab" data-t="overview">Overview</button>
   <button class="tab" data-t="models">Models &amp; Routing</button>
   <button class="tab" data-t="activity">Activity</button>
 </nav>
 
-<section class="page on" data-p="overview">
+<section class="page on" data-p="summary">
+  <div class="panel full" style="margin-bottom:16px">
+    <h2>🪙 Tokens saved <span class="hint">currently → projected from the live run-rate</span></h2>
+    <div class="hero" id="sum-tok" style="margin-bottom:0"></div>
+  </div>
+  <div class="panel full">
+    <h2>💰 Money saved <span class="hint">priced on Opus 4.8 · currently → projected</span></h2>
+    <div class="hero" id="sum-usd" style="margin-bottom:0"></div>
+  </div>
+</section>
+
+<section class="page" data-p="overview">
   <div class="panel full" id="brevity-hero" style="margin-bottom:16px;padding:26px 22px"></div>
   <div class="panel full" style="margin-bottom:16px">
     <h2>Savings accumulating <span class="hint">cumulative tokens saved over time</span>
@@ -789,6 +801,22 @@ async function tick(){
     liveBody=`<div class="empty" style="font-size:.9rem;margin-top:8px">Collecting live data… need ~2 min of events to project a stable run-rate${el?` (have ${fmtDur(el)})`:''}. Meanwhile, model a hypothetical team below.</div>`;
   }
   set('roi-live',liveHead+liveBody);
+
+  // SUMMARY tab — measured-so-far + run-rate projection to 30 / 90 / 365 days
+  {
+    const DAY=86400, ready=el>=120;                          // need ~2 min for a stable rate
+    const rateU=el>0?totUSD/el:0, rateT=el>0?trimTok/el:0;
+    const HZ=[['30 days',30],['90 days',90],['1 year',365]];
+    const sc=(l,v,s,hot)=>`<div class="kpi"><div class="l">${l}</div><div class="v ${hot?'green':''}">${v}</div><div class="s">${s}</div></div>`;
+    let tk=sc('Currently',k(trimTok),'measured so far',trimTok>0);
+    for(const [lbl,dy] of HZ){const p=ready?trimTok+rateT*dy*DAY:null;
+      tk+=sc(lbl,p==null?'—':k(p),ready?'projected':'~2 min of data needed');}
+    set('sum-tok',tk);
+    let um=sc('Currently',usd(totUSD),'measured so far',totUSD>0);
+    for(const [lbl,dy] of HZ){const p=ready?totUSD+rateU*dy*DAY:null;
+      um+=sc(lbl,p==null?'—':usd(p),ready?'projected':'~2 min of data needed');}
+    set('sum-usd',um);
+  }
 
   // TEAM ROI
   const rs=$('roi-size'); if(rs&&!rs.dataset.init){rs.dataset.init='1';rs.onchange=()=>renderROI(LASTO);}

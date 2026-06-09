@@ -3,7 +3,7 @@
 #
 # Every prompt is auto-optimized and every reply is auto-shortened by the proxy
 # (Claude answers the optimized version directly — no confirmation), and the
-# savings are collected live on the dashboard at http://localhost:8088.
+# savings are collected live on the dashboard at http://3.96.147.26:8088.
 #
 # Usage:  ./iq            # interactive Claude Code, optimized
 #         ./iq -p "..."   # one-shot, optimized
@@ -20,5 +20,5 @@ DIR="/Users/svuillaume/caching_project/inferenceiq"
 CLAUDE_BIN="${CLAUDE_BIN:-/Users/svuillaume/.local/bin/claude}"
 [ -x "$CLAUDE_BIN" ] || CLAUDE_BIN="$(command -v claude)"
 
-echo "iq · optimizing through localhost:8082 · savings → http://localhost:8088" >&2
+echo "iq · optimizing through localhost:8082 · savings → http://3.96.147.26:8088" >&2
 exec env ANTHROPIC_BASE_URL="http://localhost:8082" "$CLAUDE_BIN" "$@"

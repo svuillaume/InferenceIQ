@@ -54,11 +54,11 @@ ANTHROPIC_API_KEY=sk-ant-... ./recommend.py "fix the bug"
 ./iq                                      # or: ANTHROPIC_BASE_URL=http://localhost:8082 claude
 ```
 
-- Dashboard / stats: `http://localhost:8088` (auto-refreshes `/api/stats` every 2s).
+- Dashboard / stats: `http://3.96.147.26:8088` (auto-refreshes `/api/stats` every 2s).
 - Ports and tuning live as module-level globals / env vars at the top of each file — no config
   file. Editing a server file requires a restart (`docker compose restart`, or rebuild since the
   images `COPY` the source).
-- Reporting target: `INFERENCEIQ_DASHBOARD` (default `http://localhost:8088`; `http://dashboard:8088`
+- Reporting target: `INFERENCEIQ_DASHBOARD` (default `http://3.96.147.26:8088`; `http://dashboard:8088`
   inside compose; `off` disables). Set it to a remote collector's URL to report across machines.
 
 ## Architecture notes

@@ -6,7 +6,7 @@ On every prompt it:
   1. optimizes the text (mechanical, meaning-preserving) to cut tokens,
   2. injects the tighter phrasing + an output-control directive as authoritative
      context — so Claude acts on it with NO confirmation (auto-accept), and
-  3. reports the saving to the dashboard (http://localhost:8088).
+  3. reports the saving to the dashboard (http://3.96.147.26:8088).
 It never blocks — a failure just passes your prompt through untouched.
 
 One honest limit: a Claude Code hook cannot replace your typed text (only block or
@@ -17,7 +17,7 @@ through the proxy (./iq).
 Env:
   OPTIMIZER_DIR        — where optimize.py lives (default: repo root, auto-detected)
   CONCISE_NOTE         — override the output-control directive
-  INFERENCEIQ_DASHBOARD — dashboard URL to report to (default http://localhost:8088; "off" disables)
+  INFERENCEIQ_DASHBOARD — dashboard URL to report to (default http://3.96.147.26:8088; "off" disables)
 """
 import sys, os, json
 

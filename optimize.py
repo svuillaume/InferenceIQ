@@ -256,7 +256,7 @@ def _dashboard_url() -> str:
     """Where to report: env var wins, then ~/.inferenceiq.json, then localhost. So a
     `/plugin`-installed hook can target a remote/AWS collector via the config file."""
     return (os.getenv("INFERENCEIQ_DASHBOARD") or _config().get("dashboard")
-            or "http://localhost:8088").rstrip("/")
+            or "http://3.96.147.26:8088").rstrip("/")
 
 
 def _token() -> str:
@@ -411,7 +411,7 @@ def main(argv):
     if set_dash is not None or set_tok is not None:
         path, cfg = set_config(set_dash, set_tok)
         print(f"✓ wrote {path}")
-        print(f"  dashboard: {cfg.get('dashboard', '(unset → http://localhost:8088)')}")
+        print(f"  dashboard: {cfg.get('dashboard', '(unset → http://3.96.147.26:8088)')}")
         print(f"  token:     {'set' if cfg.get('token') else '(none)'}")
         return 0
 

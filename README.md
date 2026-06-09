@@ -103,7 +103,7 @@ Three surfaces *act* on prompts; the dashboard only *watches*.
 | **1** | **CLI** (`optimize.py` / `recommend.py`) | 🙋 you run it | Terminal / scripting | Shorten or rewrite from the shell; prints before/after + savings; reports to the dashboard | `./optimize.py "…"` |
 | **2** | **Claude Code hook** | ⚡ automatic | Inside Claude Code | On submit, injects a tighter equivalent phrasing **and** a brevity directive as context (no confirmation, never blocks) | every CC session |
 | **3** | **Intercept proxy** | ⚡ automatic | Terminal `claude` / any API client | Rewrites the **last user turn** on the wire, and (default `CONCISE=1`) trims the reply | `ANTHROPIC_BASE_URL=http://localhost:8082` |
-| **4** | **Dashboard** | 👁 view-only | Anyone watching cost | A live page of savings across all sources and machines. View-only — **no prompt input**; the only controls are Settings (refresh/theme/timezone + a **Reset counters** button), a model-price selector, and the team-ROI view | `http://localhost:8088` |
+| **4** | **Dashboard** | 👁 view-only | Anyone watching cost | A live page of savings across all sources and machines. View-only — **no prompt input**; the only controls are Settings (refresh/theme/timezone + a **Reset counters** button), a model-price selector, and the team-ROI view | `http://3.96.147.26:8088` |
 
 **How to choose:** scripting / one-off cleanup → **1** · hands-off inside Claude Code → **2** ·
 fully automatic on the wire (and reply-trimming) → **3** · just watching the numbers → **4**.
@@ -325,7 +325,7 @@ docker compose up -d --build     # builds + starts: dashboard on :8088, proxy on
 docker compose ps                # confirm BOTH 'dashboard' and 'intercept' show "running"
 ```
 Then:
-- **Open the dashboard:** http://localhost:8088
+- **Open the dashboard:** http://3.96.147.26:8088
 - **Send traffic through the proxy:** `./iq`  *(equivalent to `ANTHROPIC_BASE_URL=http://localhost:8082 claude`)*
 - **See the numbers move without real usage:** `./demo.sh`  *(replays sample prompts)*
 - **Turn off reply-trimming:** `CONCISE=0 docker compose up -d` *(it's ON by default)*
@@ -369,7 +369,7 @@ the deps, and serves in the foreground (Linux & macOS):
 
 ```bash
 cd dashboard
-./run.sh                                       # http://localhost:8088 (Ctrl-C to stop)
+./run.sh                                       # http://3.96.147.26:8088 (Ctrl-C to stop)
 IQ_TOKEN=$(openssl rand -hex 24) ./run.sh      # with write auth
 nohup env IQ_TOKEN=secret ./run.sh > dashboard.log 2>&1 &   # background
 ```
@@ -463,12 +463,12 @@ plugin — no machine-specific paths.)
 > `.claude-plugin/`, `hooks/hooks.json`, `optimize.py`, and `.claude/hooks/optimize_prompt.py`
 > (a `.gitignore` for `.env`/`.venv/`/`__pycache__/` is recommended first).
 
-**TL;DR:** run **A**, open http://localhost:8088, then `./demo.sh`. For just the hook,
+**TL;DR:** run **A**, open http://3.96.147.26:8088, then `./demo.sh`. For just the hook,
 use **E**: `/plugin marketplace add svuillaume/InferenceIQ` → `/plugin install inferenceiq@inferenceiq`.
 
 ### Point the hook at a remote dashboard (e.g. `foo.com`)
 
-By default the hook reports to `http://localhost:8088`. To send metrics to a central collector
+By default the hook reports to `http://3.96.147.26:8088`. To send metrics to a central collector
 running elsewhere — say `https://foo.com:8088` (a box you stood up with
 [`dashboard/install.sh`](#c-dashboard-only--standalone-local-or-on-a-remote-box)) — point the
 hook at it in **any one** of these ways (they resolve in this order: env var → config file →
@@ -573,8 +573,8 @@ through the proxy with an API key).
 | proxy | `COUNT_MODE` | dashboard savings counter: `estimate` (instant, chars/4) · `exact` (background `count_tokens`, no added latency, uses the caller's key) |
 | proxy | `CONCISE` | `1` (compose default) appends a brevity nudge to the last user turn → shorter replies; `0` to disable |
 | proxy | `CONCISE_NOTE` | override the brevity directive text |
-| proxy | `DASHBOARD_PUBLIC_URL` | where `/dashboard` redirects a browser (default `http://localhost:8088`) |
-| all reporters | `INFERENCEIQ_DASHBOARD` | where to report runs (default `http://localhost:8088`; `http://dashboard:8088` in compose; a remote URL for central collection; `off` disables) |
+| proxy | `DASHBOARD_PUBLIC_URL` | where `/dashboard` redirects a browser (default `http://3.96.147.26:8088`) |
+| all reporters | `INFERENCEIQ_DASHBOARD` | where to report runs (default `http://3.96.147.26:8088`; `http://dashboard:8088` in compose; a remote URL for central collection; `off` disables) |
 | dashboard + reporters | `IQ_TOKEN` | shared secret for the **write** endpoints (`/api/record`, `/api/reset`, `/api/tz`). Empty (default) = open. Set it on the collector **and** on every reporter (same value) before exposing the dashboard publicly. Reads (`/api/stats`, `/`) stay open |
 | hook / CLI (plugin installs) | `~/.inferenceiq.json` (or `$IQ_CONFIG`) | JSON config read by `optimize.report()` when env vars aren't available (e.g. a `/plugin` hook): `{"dashboard": "https://dash.yourco.com", "token": "…"}`. Env vars win over the file |
 | optimizer rules | top of `optimize.py` | edit the `RULES` list to tune mechanical behavior |
@@ -691,5 +691,5 @@ indexes. On by default; tune with the `CACHE_*` env above.
 decisions** and a **Models used** breakdown (replies + output tokens per model).
 
 > Run `docker compose ps` to see both services; the dashboard is the front door at
-> **http://localhost:8088**.
+> **http://3.96.147.26:8088**.
 # InferenceIQ

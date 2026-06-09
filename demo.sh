@@ -10,12 +10,12 @@
 #   token prices (match the dashboard): Sonnet $3/$15 · Haiku $1/$5 · Opus $5/$25 per 1M
 # So this demo uses real agent-scale token volumes and a ~60% reply reduction / ~30% cache hit.
 #
-# Usage:  ./demo.sh                 # 5 developers, 5 minutes, http://localhost:8088
+# Usage:  ./demo.sh                 # 5 developers, 5 minutes, http://3.96.147.26:8088
 #         DEVS=10 DURATION=120 ./demo.sh
 #         DASH=http://host:8088 ./demo.sh
 set -euo pipefail
 
-DASH="${DASH:-http://localhost:8088}"
+DASH="${DASH:-http://3.96.147.26:8088}"
 DURATION="${DURATION:-300}"
 TICK="${TICK:-1}"
 DEVS="${DEVS:-5}"
