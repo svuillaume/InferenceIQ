@@ -44,7 +44,7 @@ docker compose up -d --build
 cd dashboard && uvicorn collector:app --host 0.0.0.0 --port 8088
 
 # CLI (local; exact counts need ANTHROPIC_API_KEY):
-./optimize.py "Hey could you please just clean this up?"
+./engines/optimize.py "Hey could you please just clean this up?"
 
 # Drive Claude Code through the proxy:
 ./iq                                      # or: ANTHROPIC_BASE_URL=http://localhost:8082 claude
@@ -89,21 +89,28 @@ and mutating arbitrary turns. Do not reintroduce any of that. "Safe for Claude C
 ## File map
 
 ```
-optimize.py                        mechanical core + CLI; est(); host-tagged report() (privacy-gated)
-router.py                          deterministic intent → model routing (Haiku/Sonnet/Opus); no API call
-semcache.py                        3-layer semantic cache (exact + fastembed vector + LLM fallback); non-agentic only
-intercept.py                       ⚡ Auto proxy (:8082): cache + optimize + CONCISE + model routing
-dashboard/collector.py             standalone monitor (:8088): per-host, models-used, routing; modern UI
-dashboard/Dockerfile               slim collector image (fastapi/uvicorn + tzdata)
-dashboard/requirements.txt         fastapi · uvicorn · tzdata
+engines/                           the shared core (importable modules; CLI lives here too)
+  optimize.py                      mechanical core + CLI; est(); host-tagged report() (privacy-gated)
+  router.py                        deterministic intent → model routing (Haiku/Sonnet/Opus); no API call
+  semcache.py                      3-layer semantic cache (exact + fastembed vector + LLM fallback); non-agentic only
+proxy/                             the in-path proxy surface
+  intercept.py                     ⚡ Auto proxy (:8082): cache + optimize + CONCISE + model routing; imports ../engines
+  Dockerfile                       proxy image (copies engines/ + proxy/intercept.py; PYTHONPATH=/app/engines)
+  requirements-proxy.txt           proxy image deps only (fastapi · uvicorn · httpx — no anthropic)
+dashboard/                         the standalone monitor surface
+  collector.py                     monitor (:8088): per-host, models-used, routing; modern UI
+  Dockerfile                       slim collector image (fastapi/uvicorn + tzdata)
+  requirements.txt                 fastapi · uvicorn · tzdata
 .claude/hooks/optimize_prompt.py   UserPromptSubmit hook (single auto mode; injects context; never blocks)
-Dockerfile                         proxy image (optimize.py + intercept.py + router.py + semcache.py)
-requirements-proxy.txt             proxy image deps only (fastapi · uvicorn · httpx — no anthropic)
-compose.yml                        two services: dashboard (./dashboard) + intercept (.)
+compose.yml                        intercept service (build: proxy/Dockerfile, context = repo root); reports to remote collector
 requirements.txt                   full local/CLI set (fastapi · uvicorn · httpx · anthropic)
 iq                                 launcher: compose up + claude via the proxy
 demo.sh                            drives sample prompts through the proxy to populate the dashboard
 ```
+
+Layout: **engines/** (shared core) · **proxy/** (in-path surface) · **dashboard/** (monitor). The
+proxy imports the engine modules from `../engines` (a `sys.path` shim locally; `PYTHONPATH=/app/engines`
+in the image). The hook resolves `optimize.py` from `engines/` too (`OPTIMIZER_DIR` or auto-detect).
 
 ## Model routing & privacy (added)
 

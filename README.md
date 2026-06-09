@@ -97,7 +97,7 @@ Three surfaces *act* on prompts; the dashboard only *watches*.
 
 | # | Surface | Kind | Who it's for | What happens | Where |
 |---|---|---|---|---|---|
-| **1** | **CLI** (`optimize.py`) | 🙋 you run it | Terminal / scripting | Shorten from the shell; prints before/after + savings; reports to the dashboard | `./optimize.py "…"` |
+| **1** | **CLI** (`optimize.py`) | 🙋 you run it | Terminal / scripting | Shorten from the shell; prints before/after + savings; reports to the dashboard | `./engines/optimize.py "…"` |
 | **2** | **Claude Code hook** | ⚡ automatic | Inside Claude Code | On submit, injects a tighter equivalent phrasing **and** a brevity directive as context (no confirmation, never blocks) | every CC session |
 | **3** | **Intercept proxy** | ⚡ automatic | Terminal `claude` / any API client | Rewrites the **last user turn** on the wire, and (default `CONCISE=1`) trims the reply | `ANTHROPIC_BASE_URL=http://localhost:8082` |
 | **4** | **Dashboard** | 👁 view-only | Anyone watching cost | A live page of savings across all sources and machines. View-only — **no prompt input**; the only controls are Settings (refresh/theme/timezone + a **Reset counters** button), a model-price selector, and the team-ROI view | `http://3.96.147.26:8088` |
@@ -122,9 +122,9 @@ fully automatic on the wire (and reply-trimming) → **3** · just watching the 
 - **Limits:** small savings on already-tight prompts; can't restructure or reason about a prompt.
 - **CLI:**
   ```bash
-  ./optimize.py "text"                                     # single prompt
-  ./optimize.py --copy "text"                              # also copy result to clipboard (macOS)
-  ./optimize.py --batch prompts.txt --out optimized.txt    # many prompts → totals + file
+  ./engines/optimize.py "text"                                  # single prompt
+  ./engines/optimize.py --copy "text"                           # also copy result to clipboard (macOS)
+  ./engines/optimize.py --batch prompts.txt --out optimized.txt # many prompts → totals + file
   #   batch file: prompts separated by a line of ---, or one per line
   ```
 
@@ -178,14 +178,15 @@ fully automatic on the wire (and reply-trimming) → **3** · just watching the 
   timezone), `GET /`.
 
 ### Container files
-- **`Dockerfile`** (root) — the **proxy** image: installs `requirements-proxy.txt`
-  (`fastapi`/`uvicorn`/`httpx` + `fastembed`/`numpy`, no Anthropic SDK), copies `optimize.py` +
-  `intercept.py` + `router.py` + `semcache.py`, runs `uvicorn intercept:app` on :8082.
+- **`proxy/Dockerfile`** — the **proxy** image: installs `proxy/requirements-proxy.txt`
+  (`fastapi`/`uvicorn`/`httpx` + `fastembed`/`numpy`, no Anthropic SDK), copies `engines/` +
+  `proxy/intercept.py` (sets `PYTHONPATH=/app/engines`), runs `uvicorn intercept:app` on :8082.
+  Built from the **repo root** context so it can pull in `engines/`.
 - **`dashboard/Dockerfile`** — the **collector** image: slim, installs only `fastapi`/`uvicorn`/
   `tzdata`, copies `collector.py`, runs on :8088. No Anthropic SDK, no repo code.
-- **`compose.yml`** — two services: `dashboard` (built from `./dashboard`, :8088) and `intercept`
-  (built from `.`, :8082, reports to `http://dashboard:8088`, honours `COUNT_MODE`/`CONCISE`/
-  `ROUTE_MODELS`/`CACHE_*`); named volumes persist the embedding model + cache store.
+- **`compose.yml`** — the `intercept` service (built from the repo root via `proxy/Dockerfile`,
+  :8082; honours `COUNT_MODE`/`CONCISE`/`ROUTE_MODELS`/`CACHE_*`, reports to the remote collector via
+  `INFERENCEIQ_DASHBOARD`); named volumes persist the embedding model + cache store.
 
 ---
 
@@ -280,7 +281,7 @@ through a catch-all passthrough — no mutation.
 
 | Unit | Image / runtime | Contains | Needs |
 |---|---|---|---|
-| **Proxy** | root `Dockerfile` (:8082) | `intercept` + `optimize` + `router` + `semcache` + fastembed/numpy | API key (for real traffic); volumes for model + cache store |
+| **Proxy** | `proxy/Dockerfile` (:8082) | `proxy/intercept` + `engines/{optimize,router,semcache}` + fastembed/numpy | API key (for real traffic); volumes for model + cache store |
 | **Dashboard** | `dashboard/Dockerfile` (:8088) | `collector` only (fastapi/uvicorn/tzdata) | nothing — deploy anywhere, collect from many hosts |
 | **Hook** | pure-stdlib script | `optimize_prompt.py` → imports `optimize` | any `python3`; no key, works on OAuth |
 | **CLI** | local venv | `optimize.py` | key only for exact counts |
@@ -328,7 +329,7 @@ Then:
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # first time only
 
-./optimize.py "Hey could you please just clean this up?"             # mechanical, free, offline
+./engines/optimize.py "Hey could you please just clean this up?"             # mechanical, free, offline
 ```
 *(If a dashboard from **A** or **C** is running, these auto-report to it — no extra flags.)*
 
@@ -466,8 +467,8 @@ default):
 
 **2 — CLI** (writes the same config file from the shell):
 ```bash
-./optimize.py --set-dashboard https://foo.com:8088          # add --set-token <secret> if protected
-./optimize.py --show-config                                  # check what's set
+./engines/optimize.py --set-dashboard https://foo.com:8088          # add --set-token <secret> if protected
+./engines/optimize.py --show-config                                  # check what's set
 ```
 
 **3 — Config file** — both of the above just write `~/.inferenceiq.json` (override the path with
@@ -618,17 +619,20 @@ help; building it for real needs your actual data/app.
 ## File map
 
 ```
-optimize.py                        mechanical core + CLI; est(); host-tagged, privacy-gated report()
-router.py                          deterministic intent → model routing (Haiku/Sonnet/Opus), no API call
-semcache.py                        3-layer semantic cache (exact + fastembed vector + LLM fallback); non-agentic only
-intercept.py                       ⚡ Auto proxy (:8082): cache + optimize + CONCISE + routing; /dashboard → :8088
-dashboard/collector.py             standalone monitor (:8088): per-host, models-used, routing, modern UI
-dashboard/Dockerfile               slim collector image (fastapi/uvicorn + tzdata)
-dashboard/requirements.txt         fastapi · uvicorn · tzdata
+engines/                           the shared core (importable modules; CLI lives here)
+  optimize.py                      mechanical core + CLI; est(); host-tagged, privacy-gated report()
+  router.py                        deterministic intent → model routing (Haiku/Sonnet/Opus), no API call
+  semcache.py                      3-layer semantic cache (exact + fastembed vector + LLM fallback); non-agentic only
+proxy/                             the in-path proxy surface
+  intercept.py                     ⚡ Auto proxy (:8082): cache + optimize + CONCISE + routing; imports ../engines; /dashboard → :8088
+  Dockerfile                       proxy image (copies engines/ + proxy/intercept.py; PYTHONPATH=/app/engines)
+  requirements-proxy.txt           proxy image deps only: fastapi · uvicorn · httpx (no anthropic)
+dashboard/                         the standalone monitor surface
+  collector.py                     monitor (:8088): per-host, models-used, routing, modern UI
+  Dockerfile                       slim collector image (fastapi/uvicorn + tzdata)
+  requirements.txt                 fastapi · uvicorn · tzdata
 .claude/hooks/optimize_prompt.py   UserPromptSubmit hook (single auto mode; injects context; never blocks)
-Dockerfile                         proxy image (optimize.py + intercept.py + router.py + semcache.py)
-requirements-proxy.txt             proxy image deps only: fastapi · uvicorn · httpx (no anthropic)
-compose.yml                        two services: dashboard (./dashboard) + intercept (.)
+compose.yml                        intercept service (build: proxy/Dockerfile, context = repo root); reports to remote collector
 requirements.txt                   full local/CLI set: fastapi · uvicorn · httpx · anthropic
 iq                                 launcher: compose up + claude via the proxy
 demo.sh                            drives sample prompts through the proxy to populate the dashboard

@@ -18,11 +18,15 @@ Run:
   # dashboard: http://localhost:8082/dashboard
 """
 
-import os, re, json, time, asyncio
+import os, re, json, time, asyncio, sys
 from fastapi import FastAPI, Request
 from fastapi.responses import (StreamingResponse, JSONResponse,
                                Response, RedirectResponse)
 import httpx
+
+# The engine modules (optimize/router/semcache) live in ../engines. Add it to the path so the
+# proxy resolves them whether run from the repo, a container, or anywhere else.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "engines"))
 
 from optimize import optimize, est, HOST, USER
 from router import route
