@@ -1,20 +1,7 @@
+# Collector runs on a REMOTE box (3.96.147.26:8088). This stack is the proxy only;
+# it reports there via INFERENCEIQ_DASHBOARD. To run a local collector instead, see
+# the standalone command in CLAUDE.md / README.
 services:
-  dashboard:                       # standalone savings collector on :8088 (its own slim image)
-    build: ./dashboard
-    ports:
-      - "8088:8088"
-    environment:
-      # Optional: pin the feed timezone (e.g. America/Toronto). Empty = auto-detect from public IP.
-      - IQ_TZ=${IQ_TZ:-}
-      # Shared token for the WRITE endpoints (/api/record, /api/reset, /api/tz). Empty = open
-      # (local default). SET THIS before exposing the collector publicly (e.g. on AWS), and put
-      # the same value on every reporter (env IQ_TOKEN or ~/.inferenceiq.json). Reads stay open.
-      - IQ_TOKEN=${IQ_TOKEN:-}
-    restart: unless-stopped
-    # Pure monitor — imports nothing from the repo, calls no API, needs no key.
-    # To collect from other machines, expose this host and point their
-    # INFERENCEIQ_DASHBOARD at http://<this-host>:8088.
-
   intercept:                       # ⚡ Auto optimizing proxy on :8082
     build: .
     command: uvicorn intercept:app --host 0.0.0.0 --port 8082
@@ -48,15 +35,13 @@ services:
       - CACHE_PER_MODEL=${CACHE_PER_MODEL:-0}  # 1 = namespace cache per requested model
       - CACHE_MODEL=${CACHE_MODEL:-BAAI/bge-small-en-v1.5}   # local ONNX embedding model
       - CACHE_PERSIST_PATH=${CACHE_PERSIST_PATH:-/cache/store.json}
-      # Where the PROXY reports (default the local collector; set to a remote/AWS URL to centralize).
-      - INFERENCEIQ_DASHBOARD=${INFERENCEIQ_DASHBOARD:-http://dashboard:8088}
+      # Where the PROXY reports — the remote/central collector (override in .env).
+      - INFERENCEIQ_DASHBOARD=${INFERENCEIQ_DASHBOARD:-http://3.96.147.26:8088}
       # Where the proxy's /dashboard redirects a browser (host-visible URL).
-      - DASHBOARD_PUBLIC_URL=${DASHBOARD_PUBLIC_URL:-http://localhost:8088}
+      - DASHBOARD_PUBLIC_URL=${DASHBOARD_PUBLIC_URL:-http://3.96.147.26:8088}
     volumes:
       - iq_models:/models     # cached ONNX embedding model (avoid re-download on restart)
       - iq_cache:/cache        # persisted semantic-cache store
-    depends_on:
-      - dashboard
     restart: unless-stopped
 
 volumes:
