@@ -103,8 +103,11 @@ def _fresh_tally():
         "t0": 0.0,                         # epoch of the first event → live run-rate window
         "mode_seen": 0.0,                  # last demo.sh heartbeat → show "Demo" vs "live"
         # Output-side; cache_read/creation/input come from Anthropic's REAL usage object.
+        # *_samples keep the last N per-reply output_tokens so we can report the MEDIAN reply
+        # length (robust to the occasional very long answer that skews the mean).
         "out": {"concise_tokens": 0, "concise_n": 0, "normal_tokens": 0, "normal_n": 0,
-                "cache_read_tokens": 0, "cache_creation_tokens": 0, "input_tokens": 0},
+                "cache_read_tokens": 0, "cache_creation_tokens": 0, "input_tokens": 0,
+                "concise_samples": [], "normal_samples": []},
     }
 
 
@@ -238,6 +241,11 @@ def record_event(kind, source="cli", saved=0, rules=None, techniques=None, tips=
         n = max(0, int(out_tokens or 0))
         TALLY["out"][f"{b}_tokens"] += n
         TALLY["out"][f"{b}_n"] += 1
+        if n > 0:                                   # keep a bounded sample window for the median
+            s = TALLY["out"][f"{b}_samples"]
+            s.append(n)
+            if len(s) > 1000:
+                del s[0]
         TALLY["out"]["cache_read_tokens"] += max(0, int(cache_read or 0))
         TALLY["out"]["cache_creation_tokens"] += max(0, int(cache_creation or 0))
         TALLY["out"]["input_tokens"] += max(0, int(in_tokens or 0))
@@ -313,14 +321,29 @@ async def api_record(request: Request):
     return JSONResponse({"ok": True})
 
 
+def _median(xs):
+    xs = sorted(xs)
+    m = len(xs)
+    if not m:
+        return 0
+    return xs[m // 2] if m % 2 else round((xs[m // 2 - 1] + xs[m // 2]) / 2)
+
+
 def _output_summary():
     o = TALLY["out"]
     cn, nn = o["concise_n"], o["normal_n"]
     c_avg = round(o["concise_tokens"] / cn) if cn else 0
     n_avg = round(o["normal_tokens"] / nn) if nn else 0
-    pct = round((n_avg - c_avg) / n_avg * 100) if (c_avg and n_avg) else 0
-    out_saved = max(0, (n_avg - c_avg)) * cn if (c_avg and n_avg) else 0
-    return {"concise_avg": c_avg, "normal_avg": n_avg, "concise_n": cn, "normal_n": nn,
+    # MEDIAN reply length per bucket — robust to the rare very-long answer that skews the mean.
+    c_med = _median(o.get("concise_samples", []))
+    n_med = _median(o.get("normal_samples", []))
+    # Reply reduction & output-saved are now driven by the MEDIAN (fall back to mean if no samples).
+    cb, nb = (c_med or c_avg), (n_med or n_avg)
+    pct = round((nb - cb) / nb * 100) if (cb and nb) else 0
+    out_saved = max(0, (nb - cb)) * cn if (cb and nb) else 0
+    return {"concise_avg": c_avg, "normal_avg": n_avg,
+            "concise_median": c_med, "normal_median": n_med,
+            "concise_n": cn, "normal_n": nn,
             "pct_shorter": pct, "out_tokens_saved": out_saved,
             "cache_read_tokens": o["cache_read_tokens"],          # real, from Anthropic usage
             "cache_creation_tokens": o["cache_creation_tokens"],
@@ -426,93 +449,104 @@ async def full():
 SIMPLE_PAGE = r"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>InferenceIQ · tokens saved</title>
+<title>InferenceIQ · before vs after</title>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  :root{--bg:#0a0e14;--card:#141a23;--card2:#181f2a;--line:#222b38;--fg:#e8edf4;
-    --muted:#8a97a8;--dim:#5b6675;--accent:#6ea8fe;--green:#46d39a;--amber:#f0b84e;--red:#f0686d}
+  :root{--bg:#05070c;--card:#0c111a;--card2:#0f151f;--line:#1a2230;--line2:#26313f;--fg:#eef3fa;
+    --muted:#7e8da1;--dim:#4d596b;--accent:#5b9bff;--green:#2fd6a6;--amber:#f3b14a;--violet:#a07bff}
   body{font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-    background:radial-gradient(1100px 560px at 82% -12%,#16202e 0%,var(--bg) 55%);color:var(--fg);
-    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    padding:40px clamp(16px,5vw,60px);-webkit-font-smoothing:antialiased}
-  .logo{font-size:1.3rem;font-weight:800;letter-spacing:-.02em;margin-bottom:6px;
-    background:linear-gradient(90deg,var(--accent),#a98bfa);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .sub{color:var(--muted);font-size:.85rem;margin-bottom:34px;text-align:center}
+    background:
+      radial-gradient(900px 480px at 88% -8%,#16294a55 0%,transparent 60%),
+      radial-gradient(820px 520px at 2% 108%,#2a1a5533 0%,transparent 55%),
+      linear-gradient(180deg,#070a11 0%,var(--bg) 60%);
+    background-attachment:fixed;color:var(--fg);min-height:100vh;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;padding:40px clamp(16px,5vw,60px);-webkit-font-smoothing:antialiased}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:5px}
+  .mark{width:28px;height:28px;border-radius:8px;flex:none;position:relative;
+    background:conic-gradient(from 210deg,var(--accent),var(--violet),#34d399,var(--accent));
+    box-shadow:0 0 0 1px #ffffff14,0 6px 20px #5b9bff44}
+  .mark::after{content:"";position:absolute;inset:5px;border-radius:5px;background:#070a11;box-shadow:inset 0 0 8px #5b9bff55}
+  .logo{font-size:1.45rem;font-weight:800;letter-spacing:-.02em;
+    background:linear-gradient(92deg,#cfe0ff,var(--accent) 45%,var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:.84rem;margin-bottom:30px;text-align:center}
   .sub a{color:var(--accent);text-decoration:none}
-  .hero{text-align:center;margin-bottom:40px}
-  .hero .lbl{font-size:.74rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
-  .hero .big{font-size:clamp(3rem,11vw,6rem);font-weight:800;letter-spacing:-.03em;line-height:1;color:var(--green);margin:8px 0 6px}
-  .hero .pct{font-size:1.1rem;color:var(--fg)}
-  .cmp{display:grid;grid-template-columns:1fr 1fr;gap:18px;width:100%;max-width:760px}
-  .col{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);
-    border-radius:16px;padding:24px 22px;text-align:center}
-  .col.off{border-color:#f0686d44}.col.on{border-color:#46d39a55;box-shadow:0 0 0 1px #46d39a22}
-  .col .h{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:12px}
-  .col .n{font-size:2.4rem;font-weight:800;letter-spacing:-.02em;line-height:1}
-  .col.off .n{color:var(--amber)}.col.on .n{color:var(--green)}
-  .col .u{font-size:.78rem;color:var(--dim);margin-top:8px}
-  .barwrap{width:100%;max-width:760px;margin-top:18px}
-  .bar{height:30px;border-radius:8px;background:var(--line);overflow:hidden;display:flex}
-  .bar>i{display:block;height:100%}
-  .bar .keep{background:linear-gradient(90deg,#2a9c68,var(--green))}
-  .bar .cut{background:repeating-linear-gradient(45deg,#3a2630,#3a2630 6px,#46202a 6px,#46202a 12px)}
-  .legend{display:flex;justify-content:space-between;font-size:.74rem;color:var(--muted);margin-top:8px}
-  .foot{color:var(--dim);font-size:.76rem;margin-top:30px;text-align:center;max-width:620px;line-height:1.6}
-  .empty{color:var(--amber);font-size:1rem;text-align:center;max-width:560px;line-height:1.6}
+  .hero{text-align:center;margin-bottom:32px}
+  .hero .lbl{font-size:.72rem;text-transform:uppercase;letter-spacing:.14em;color:var(--muted)}
+  .hero .big{font-size:clamp(3rem,11vw,5.6rem);font-weight:800;letter-spacing:-.03em;line-height:1;margin:6px 0 4px;
+    background:linear-gradient(92deg,var(--green),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero .pct{font-size:1rem;color:var(--muted)}.hero .pct b{color:var(--green)}
+  .gauges{display:grid;grid-template-columns:1fr 1fr;gap:18px;width:100%;max-width:860px}
+  @media(max-width:640px){.gauges{grid-template-columns:1fr}}
+  .g{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);
+    border-radius:16px;padding:22px;box-shadow:0 1px 0 #ffffff06 inset,0 16px 44px -28px #000}
+  .g .gh{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .g .gt{font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .badge{font-size:.74rem;font-weight:700;padding:3px 10px;border-radius:999px;background:#2fd6a61c;color:var(--green);border:1px solid #2fd6a655}
+  .badge.zero{background:#ffffff08;color:var(--dim);border-color:var(--line)}
+  .row{display:flex;align-items:baseline;justify-content:space-between;margin:7px 0}
+  .row .k{font-size:.78rem;color:var(--muted)}
+  .row .v{font-size:1.5rem;font-weight:800;letter-spacing:-.02em}
+  .row.before .v{color:var(--amber)}.row.after .v{color:var(--green)}
+  .gbar{height:12px;border-radius:7px;background:#0a0e16;border:1px solid var(--line);overflow:hidden;margin-top:14px;position:relative}
+  .gbar .before{position:absolute;inset:0;background:repeating-linear-gradient(45deg,#3a2e1f,#3a2e1f 6px,#2e2415 6px,#2e2415 12px)}
+  .gbar .after{position:absolute;inset:0;background:linear-gradient(90deg,#1c8f6e,var(--green));border-radius:7px}
+  .glegend{display:flex;justify-content:space-between;font-size:.7rem;color:var(--dim);margin-top:7px}
+  .foot{color:var(--dim);font-size:.75rem;margin-top:26px;text-align:center;max-width:680px;line-height:1.6}
+  .foot code{color:var(--accent)}
+  .pending{color:var(--amber);font-size:.74rem;margin-top:10px}
 </style></head><body>
-  <div class="logo">⚡ InferenceIQ</div>
-  <div class="sub">Response tokens received — <b>CONCISE=0</b> (without) vs <b>CONCISE=1</b> (with) · <a href="/full">full dashboard →</a></div>
-  <div id="app" class="empty">Collecting…</div>
+  <div class="brand"><span class="mark"></span><span class="logo">InferenceIQ</span></div>
+  <div class="sub">Tokens <b>before vs after</b> InferenceIQ — input &amp; output · <a href="/full">full dashboard →</a></div>
+  <div id="app" class="foot">Collecting…</div>
 
 <script>
 const $=id=>document.getElementById(id);
 const fmt=n=>Math.round(n).toLocaleString();
+// One gauge: title, before, after, unit-note, ready flag, pending message.
+function gauge(title,before,after,note,ready,pendingMsg){
+  if(!ready) return `<div class="g"><div class="gh"><span class="gt">${title}</span><span class="badge zero">—</span></div>
+    <div class="row after"><span class="k">After InferenceIQ</span><span class="v">${fmt(after)}</span></div>
+    <div class="pending">${pendingMsg||'baseline pending'}</div></div>`;
+  const saved=Math.max(0,before-after), red=before>0?Math.round(saved/before*100):0;
+  const afterW=before>0?Math.max(3,Math.round(after/before*100)):100;
+  return `<div class="g">
+    <div class="gh"><span class="gt">${title}</span><span class="badge${red?'':' zero'}">↓ ${red}%</span></div>
+    <div class="row before"><span class="k">Before InferenceIQ</span><span class="v">${fmt(before)}</span></div>
+    <div class="row after"><span class="k">After InferenceIQ</span><span class="v">${fmt(after)}</span></div>
+    <div class="gbar"><i class="before"></i><i class="after" style="width:${afterW}%"></i></div>
+    <div class="glegend"><span>saved ${fmt(saved)}</span><span>${note||''}</span></div></div>`;
+}
 async function tick(){
   let d;try{d=await(await fetch('/api/stats')).json()}catch{return}
   const o=d.output||{};
-  const na=o.normal_avg||0, ca=o.concise_avg||0, cn=o.concise_n||0, nn=o.normal_n||0;
-  const pct=o.pct_shorter||0;
   const events=Object.values(d.sources||{}).reduce((a,b)=>a+b,0);
-  if(!(na>0&&ca>0&&cn>0)){
-    // No CONCISE=0 baseline yet → can't draw the with/without bars. Still show the LIVE numbers
-    // we do have (input trim, concise replies) so the page always moves, plus what's missing.
-    const inSaved=d.tokens_saved||0;
-    $('app').className='';
-    $('app').innerHTML=`
-      <div class="hero">
-        <div class="lbl">● Receiving data · ${fmt(events)} events</div>
-        <div class="big" style="font-size:clamp(2.4rem,8vw,4rem)">${fmt(inSaved)}</div>
-        <div class="pct">input tokens trimmed so far</div>
-      </div>
-      <div class="cmp">
-        <div class="col on"><div class="h">Concise replies (CONCISE=1)</div><div class="n">${fmt(cn)}</div><div class="u">${fmt(ca)} tokens/reply avg</div></div>
-        <div class="col off"><div class="h">Baseline replies (CONCISE=0)</div><div class="n">${fmt(nn)}</div><div class="u">needed to compare</div></div>
-      </div>
-      <div class="foot">The <b>with vs without</b> comparison needs replies in <b>both</b> buckets — you have ${cn} concise and ${nn} baseline.
-        Populate the baseline: run <code>./core-engine/calibrate.py</code> (sends both modes), <code>./demo.sh</code>, or any <code>CONCISE=0</code> traffic.</div>`;
-    return;
-  }
-  // Apples-to-apples over the SAME number of concise replies served.
-  const withoutTot=na*cn, withTot=ca*cn, saved=Math.max(0,withoutTot-withTot);
-  const keepPct=Math.max(2,Math.round(withTot/withoutTot*100)), cutPct=100-keepPct;
+  // INPUT: trimmed filler removed from prompts. after = real billed input; before = after + trimmed.
+  const inSaved=d.tokens_saved||0, inAfter=o.input_tokens||0, inBefore=inAfter+inSaved;
+  const inReady=inBefore>0;
+  // OUTPUT: needs both buckets (CONCISE=0 baseline vs CONCISE=1). Use the MEDIAN reply length
+  // (robust to the odd very-long answer), over the SAME concise replies.
+  const nm=o.normal_median||o.normal_avg||0, cm=o.concise_median||o.concise_avg||0;
+  const cn=o.concise_n||0, nn=o.normal_n||0;
+  const outReady=nm>0&&cm>0&&cn>0;
+  const outBefore=nm*cn, outAfter=cm*cn;
+  // Overall reduction (the "gain") across whatever we can measure.
+  const tBefore=(inReady?inBefore:0)+(outReady?outBefore:0);
+  const tAfter=(inReady?inAfter:0)+(outReady?outAfter:0);
+  const gain=tBefore>0?Math.round((tBefore-tAfter)/tBefore*100):0;
   $('app').className='';
   $('app').innerHTML=`
     <div class="hero">
-      <div class="lbl">Total response tokens saved</div>
-      <div class="big">${fmt(saved)}</div>
-      <div class="pct"><b class="" style="color:var(--green)">${pct}% shorter</b> replies · over ${fmt(cn)} answers</div>
+      <div class="lbl">Overall token reduction · ${fmt(events)} events</div>
+      <div class="big">${gain}%</div>
+      <div class="pct"><b>${fmt(Math.max(0,tBefore-tAfter))}</b> tokens saved · ${fmt(tBefore)} → ${fmt(tAfter)}</div>
     </div>
-    <div class="cmp">
-      <div class="col off"><div class="h">Without · CONCISE=0</div><div class="n">${fmt(withoutTot)}</div><div class="u">${fmt(na)} tokens/reply avg</div></div>
-      <div class="col on"><div class="h">With InferenceIQ · CONCISE=1</div><div class="n">${fmt(withTot)}</div><div class="u">${fmt(ca)} tokens/reply avg</div></div>
+    <div class="gauges">
+      ${gauge('Input tokens (prompts)',inBefore,inAfter,`${fmt(inSaved)} filler trimmed`,inReady,'no prompts measured yet')}
+      ${gauge('Output tokens (replies)',outBefore,outAfter,`${fmt(cn)} concise replies`,outReady,'needs a CONCISE=0 baseline — run ./core-engine/calibrate.py')}
     </div>
-    <div class="barwrap">
-      <div class="bar"><i class="keep" style="width:${keepPct}%"></i><i class="cut" style="width:${cutPct}%"></i></div>
-      <div class="legend"><span>kept ${keepPct}%</span><span>saved ${cutPct}%</span></div>
-    </div>
-    <div class="foot">Measured from Anthropic's real <code>output_tokens</code>: the average reply with reply-trimming
-      <b>on</b> (${fmt(ca)}) vs <b>off</b> (${fmt(na)}), applied to the ${fmt(cn)} trimmed replies served.
-      Sample: ${fmt(cn)} concise · ${fmt(nn)} normal.</div>`;
+    <div class="foot">Measured from Anthropic's real usage. <b>Input</b>: filler removed by the optimizer (after = billed input).
+      <b>Output</b>: <b>median</b> reply length with reply-trimming <b>on</b> vs <b>off</b>, applied to the concise replies served —
+      run <code>./core-engine/calibrate.py</code> for a same-prompt baseline.</div>`;
 }
 tick();setInterval(tick,2000);
 </script>
@@ -525,19 +559,33 @@ PAGE = r"""<!DOCTYPE html>
 <title>InferenceIQ · savings</title>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  :root{--bg:#0a0e14;--bg2:#0e131b;--card:#141a23;--card2:#181f2a;--line:#222b38;--line2:#2c3848;
-    --fg:#e8edf4;--muted:#8a97a8;--dim:#5b6675;--accent:#6ea8fe;--green:#46d39a;--amber:#f0b84e;
-    --violet:#a98bfa;--r:14px}
+  /* Darker, premium AI-inference theme: near-black canvas, electric-blue→violet signal accents. */
+  :root{--bg:#05070c;--bg2:#080b12;--card:#0c111a;--card2:#0f151f;--line:#1a2230;--line2:#26313f;
+    --fg:#eef3fa;--muted:#7e8da1;--dim:#4d596b;--accent:#5b9bff;--green:#2fd6a6;--amber:#f3b14a;
+    --violet:#a07bff;--glass:rgba(255,255,255,.025);--r:15px}
   body{font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-    background:radial-gradient(1100px 560px at 82% -12%,#16202e 0%,var(--bg) 55%);color:var(--fg);
-    min-height:100vh;padding:26px clamp(16px,4vw,44px);-webkit-font-smoothing:antialiased}
+    background:
+      radial-gradient(900px 480px at 88% -8%,#16294a55 0%,transparent 60%),
+      radial-gradient(820px 520px at 2% 108%,#2a1a5533 0%,transparent 55%),
+      linear-gradient(180deg,#070a11 0%,var(--bg) 60%);
+    background-attachment:fixed;color:var(--fg);min-height:100vh;
+    padding:26px clamp(16px,4vw,44px);-webkit-font-smoothing:antialiased}
   header{display:flex;align-items:center;gap:13px;flex-wrap:wrap}
-  .logo{font-size:1.4rem;font-weight:800;letter-spacing:-.02em;
-    background:linear-gradient(90deg,var(--accent),var(--violet));-webkit-background-clip:text;
-    background-clip:text;color:transparent}
-  .pill{font-size:.7rem;color:var(--muted);background:#ffffff09;border:1px solid var(--line);
-    border-radius:999px;padding:3px 11px;font-weight:500}
-  .pill.on{color:var(--accent);border-color:var(--accent);background:#6ea8fe18}
+  .logo{font-size:1.42rem;font-weight:800;letter-spacing:-.02em;display:inline-flex;align-items:center;gap:9px}
+  .logo .mark{width:26px;height:26px;border-radius:8px;flex:none;position:relative;
+    background:conic-gradient(from 210deg,var(--accent),var(--violet),#34d399,var(--accent));
+    box-shadow:0 0 0 1px #ffffff14,0 6px 18px #5b9bff33}
+  .logo .mark::after{content:"";position:absolute;inset:5px;border-radius:5px;background:#070a11;
+    box-shadow:inset 0 0 8px #5b9bff55}
+  .logo .mark::before{content:"";position:absolute;inset:0;border-radius:8px;
+    background:radial-gradient(circle at 50% 50%,#ffffff22,transparent 60%)}
+  .logo .name{background:linear-gradient(92deg,#cfe0ff,var(--accent) 45%,var(--violet));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .tagline{font-size:.66rem;color:var(--dim);letter-spacing:.04em;border-left:1px solid var(--line);
+    padding-left:11px;margin-left:2px}
+  .pill{font-size:.7rem;color:var(--muted);background:var(--glass);border:1px solid var(--line);
+    border-radius:999px;padding:4px 12px;font-weight:500;backdrop-filter:blur(6px)}
+  .pill.on{color:var(--accent);border-color:#5b9bff66;background:#5b9bff1c}
   .live{display:inline-flex;align-items:center;gap:6px;font-size:.7rem;color:var(--green)}
   .dot{width:7px;height:7px;background:var(--green);border-radius:50%;animation:pulse 2.2s infinite}
   .live.demo{color:var(--amber)}.live.demo .dot{background:var(--amber);animation:none}
@@ -548,9 +596,10 @@ PAGE = r"""<!DOCTYPE html>
   /* hero KPIs */
   .hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(186px,1fr));gap:14px;margin-bottom:22px}
   .kpi{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);
-    border-radius:var(--r);padding:18px;position:relative;overflow:hidden}
+    border-radius:var(--r);padding:18px;position:relative;overflow:hidden;
+    box-shadow:0 1px 0 #ffffff08 inset,0 10px 30px -18px #00000099}
   .kpi::after{content:"";position:absolute;inset:0 0 auto 0;height:2px;
-    background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.45}
+    background:linear-gradient(90deg,transparent,var(--accent),var(--violet),transparent);opacity:.55}
   .kpi .l{font-size:.66rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:9px}
   .kpi .v{font-size:1.95rem;font-weight:800;line-height:1;letter-spacing:-.02em}
   .kpi .s{font-size:.71rem;color:var(--dim);margin-top:7px}
@@ -564,7 +613,8 @@ PAGE = r"""<!DOCTYPE html>
   @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;margin-bottom:16px}
-  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px}
+  .panel{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);
+    border-radius:var(--r);padding:16px 18px;box-shadow:0 1px 0 #ffffff06 inset,0 14px 40px -26px #000000bb}
   .panel h2{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
     margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
   .panel h2 .hint{font-weight:400;text-transform:none;letter-spacing:0;color:var(--dim);font-size:.72rem}
@@ -630,7 +680,8 @@ PAGE = r"""<!DOCTYPE html>
 </style></head><body>
 
 <header>
-  <span class="logo">⚡ InferenceIQ</span>
+  <span class="logo"><span class="mark"></span><span class="name">InferenceIQ</span></span>
+  <span class="tagline">AI inference cost optimization</span>
   <span class="pill" id="tzpill" style="display:none"></span>
   <span class="live" id="livepill"><span class="dot"></span> <span id="modetxt">live</span></span>
   <button id="roibtn" class="pill" style="cursor:pointer;margin-left:auto">📊 Live ROI</button>
