@@ -1,8 +1,6 @@
 # InferenceIQ
 
-A **prompt token-optimizer for Claude / Claude Code**. It makes prompts cheaper to send
-and replies cheaper to receive — *without changing meaning* — and shows the savings on a
-live dashboard.
+A **prompt token-optimizer for Claude Code**. It makes you save prompts 
 
 You run Claude Code through a local **proxy** that strips filler from your prompts and
 forwards everything else byte-for-byte to Anthropic. A separate **dashboard** tallies the
