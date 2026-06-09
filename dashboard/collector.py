@@ -802,17 +802,21 @@ async function tick(){
   }
   set('roi-live',liveHead+liveBody);
 
-  // SUMMARY tab — measured-so-far + run-rate projection to 30 / 90 / 365 days
+  // SUMMARY tab — measured-so-far + run-rate projection to 30 / 90 / 365 days.
+  // Tokens and $ share ONE basis: tokens = trimmed (in+out) + prompt-cache reads (the token base
+  // behind the cache $); $ = totUSD (trim + routing + cache), matching the Overview "Total saved".
   {
     const DAY=86400, ready=el>=120;                          // need ~2 min for a stable rate
-    const rateU=el>0?totUSD/el:0, rateT=el>0?trimTok/el:0;
+    const totTok=trimTok+(o.cache_read_tokens||0);           // all tokens behind the $ figure
+    const rateU=el>0?totUSD/el:0, rateT=el>0?totTok/el:0;
     const HZ=[['30 days',30],['90 days',90],['1 year',365]];
     const sc=(l,v,s,hot)=>`<div class="kpi"><div class="l">${l}</div><div class="v ${hot?'green':''}">${v}</div><div class="s">${s}</div></div>`;
-    let tk=sc('Currently',k(trimTok),'measured so far',trimTok>0);
-    for(const [lbl,dy] of HZ){const p=ready?trimTok+rateT*dy*DAY:null;
+    const tsub=`${k(trimTok)} trimmed + ${k(o.cache_read_tokens||0)} cached`;
+    let tk=sc('Currently',k(totTok),tsub,totTok>0);
+    for(const [lbl,dy] of HZ){const p=ready?totTok+rateT*dy*DAY:null;
       tk+=sc(lbl,p==null?'—':k(p),ready?'projected':'~2 min of data needed');}
     set('sum-tok',tk);
-    let um=sc('Currently',usd(totUSD),'measured so far',totUSD>0);
+    let um=sc('Currently',usd(totUSD),'trim + routing + cache',totUSD>0);
     for(const [lbl,dy] of HZ){const p=ready?totUSD+rateU*dy*DAY:null;
       um+=sc(lbl,p==null?'—':usd(p),ready?'projected':'~2 min of data needed');}
     set('sum-usd',um);
