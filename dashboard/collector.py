@@ -404,11 +404,18 @@ async function tick(){
   const o=d.output||{};
   const na=o.normal_avg||0, ca=o.concise_avg||0, cn=o.concise_n||0, nn=o.normal_n||0;
   const pct=o.pct_shorter||0;
+  const events=Object.values(d.sources||{}).reduce((a,b)=>a+b,0);
   if(!(na>0&&ca>0&&cn>0)){
+    // No CONCISE=0 baseline yet → can't draw the with/without bars, but DON'T look dead:
+    // show that data is flowing and exactly what's missing.
     $('app').className='empty';
-    $('app').innerHTML=`Need replies in <b>both</b> buckets to compare.<br>`+
-      `Have ${cn} with CONCISE=1 and ${nn} with CONCISE=0.<br>`+
-      `<span style="color:var(--dim);font-size:.85rem">Send some prompts through the proxy with reply-trimming on, and some with it off.</span>`;
+    const got=events>0
+      ? `<div style="color:var(--green);font-size:.9rem;margin-bottom:14px">● Receiving data — ${fmt(events)} events (${cn} concise · ${nn} normal replies)</div>`
+      : `<div style="color:var(--dim);font-size:.9rem;margin-bottom:14px">No events yet.</div>`;
+    $('app').innerHTML=got+
+      `Need at least one reply in <b>each</b> bucket to draw the comparison.<br>`+
+      `Have <b>${cn}</b> with CONCISE=1 and <b>${nn}</b> with CONCISE=0.<br>`+
+      `<span style="color:var(--dim);font-size:.85rem">Populate the baseline: run <code>CONCISE=0</code> traffic once (e.g. <code>./demo.sh</code>), or send a few prompts with reply-trimming off.</span>`;
     return;
   }
   // Apples-to-apples over the SAME number of concise replies served.
