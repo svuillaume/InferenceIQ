@@ -347,10 +347,14 @@ async def api_stats():
         return [{"name": k, "count": v} for k, v in c.most_common(n)]
     o = _output_summary()
     total_saved = TALLY["tokens_saved"] + o["out_tokens_saved"]
+    # Cumulative $ for the Money-saved graph, priced at Opus default (in $5 / out $25) + routing.
+    usd_total = (TALLY["tokens_saved"] / 1e6 * 5.0
+                 + o["out_tokens_saved"] / 1e6 * 25.0
+                 + TALLY["routing"]["usd"])
     now = time.time()
     if now - TALLY["_ls"] >= 3:
         TALLY["_ls"] = now
-        TALLY["series"].append({"t": _now(), "saved": int(total_saved)})
+        TALLY["series"].append({"t": _now(), "saved": int(total_saved), "usd": round(usd_total, 4)})
         if len(TALLY["series"]) > 200:
             TALLY["series"].pop(0)
     return JSONResponse({
@@ -629,7 +633,7 @@ PAGE = r"""<!DOCTYPE html>
   <span class="logo">⚡ InferenceIQ</span>
   <span class="pill" id="tzpill" style="display:none"></span>
   <span class="live" id="livepill"><span class="dot"></span> <span id="modetxt">live</span></span>
-  <button id="roibtn" class="pill" style="cursor:pointer;margin-left:auto">📊 ROI</button>
+  <button id="roibtn" class="pill" style="cursor:pointer;margin-left:auto">📊 Live ROI</button>
   <button id="gear" class="pill" style="cursor:pointer">⚙ Settings</button>
 </header>
 
@@ -670,10 +674,15 @@ PAGE = r"""<!DOCTYPE html>
 </section>
 
 <section class="page" data-p="overview">
-  <div class="panel full">
+  <div class="panel full" style="margin-bottom:16px">
     <h2>Tokens saved <span class="hint">cumulative, over time</span>
       <span class="help" data-help="<b>Tokens saved</b> — total tokens saved climbing over time.<br><span class='f'>cumulative (input tokens saved + estimated output tokens saved), sampled ~3s</span>">i</span></h2>
     <div id="chart"><div class="empty">Collecting data… the line builds as savings accumulate.</div></div>
+  </div>
+  <div class="panel full">
+    <h2>Money saved <span class="hint">cumulative · priced on Opus 4.8</span>
+      <span class="help" data-help="<b>Money saved</b> — cumulative $ climbing over time, priced at Opus 4.8 (in $5 / out $25 per 1M) plus model-routing savings.<br><span class='f'>inTok×5 + outTok×25 (per 1M) + routing $, sampled ~3s</span>">i</span></h2>
+    <div id="chart-usd"><div class="empty">Collecting data… the line builds as savings accumulate.</div></div>
   </div>
 </section>
 
@@ -792,18 +801,22 @@ document.addEventListener('mouseover',e=>{const t=e.target.closest('[data-help]'
   if(x+300>innerWidth)x=innerWidth-310;if(x<8)x=8;TIP.style.left=x+'px';TIP.style.top=y+'px';});
 document.addEventListener('mouseout',e=>{if(e.target.closest('[data-help]'))TIP.style.display='none';});
 
-function chart(series){
+// Generic cumulative line chart. key = field to plot ('saved'|'usd'); gid = unique gradient id;
+// color = stroke; label/fmt control the footer readout.
+function chart(series,key,gid,color,label,fmt){
+  key=key||'saved'; gid=gid||'ga'; color=color||'#46d39a'; label=label||'cumulative tokens saved';
+  fmt=fmt||(x=>Math.round(x).toLocaleString());
   if(!series||series.length<2) return '<div class="empty">Collecting data… the line builds as savings accumulate.</div>';
-  const W=1000,H=190,P=10,n=series.length,v=series.map(p=>p.saved),mx=Math.max(...v,1),mn=Math.min(...v,0);
+  const W=1000,H=190,P=10,n=series.length,v=series.map(p=>+(p[key]||0)),mx=Math.max(...v,1),mn=Math.min(...v,0);
   const X=i=>P+i*(W-2*P)/(n-1),Y=z=>H-P-(z-mn)/((mx-mn)||1)*(H-2*P);
-  const pts=series.map((p,i)=>X(i).toFixed(1)+','+Y(p.saved).toFixed(1)).join(' ');
+  const pts=series.map((p,i)=>X(i).toFixed(1)+','+Y(v[i]).toFixed(1)).join(' ');
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:200px;display:block">
-    <defs><linearGradient id="ga" x1="0" x2="0" y1="0" y2="1">
-      <stop offset="0" stop-color="#46d39a" stop-opacity=".35"/><stop offset="1" stop-color="#46d39a" stop-opacity="0"/></linearGradient></defs>
-    <polygon points="${P},${H-P} ${pts} ${W-P},${H-P}" fill="url(#ga)"/>
-    <polyline points="${pts}" fill="none" stroke="#46d39a" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg>
+    <defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="${color}" stop-opacity=".35"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+    <polygon points="${P},${H-P} ${pts} ${W-P},${H-P}" fill="url(#${gid})"/>
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg>
     <div style="display:flex;justify-content:space-between;font-size:.74rem;color:var(--muted);margin-top:8px">
-      <span>${series[0].t}</span><span>cumulative tokens saved → <b class="green">${v[n-1].toLocaleString()}</b></span><span>${series[n-1].t}</span></div>`;
+      <span>${series[0].t}</span><span>${label} → <b style="color:${color}">${fmt(v[n-1])}</b></span><span>${series[n-1].t}</span></div>`;
 }
 
 // Team ROI model — N devs, 6h/day, ~22 days/mo, ~$300/dev/mo baseline (morphllm.com/ai-coding-costs).
@@ -933,7 +946,8 @@ async function tick(){
   set('brevity-hero',`<div style="font-size:.74rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">💬 Output trimming · the lever InferenceIQ controls${H('reply')}</div>`+bBody);
 
   // OVERVIEW: chart + where savings come from (levers InferenceIQ actually applies)
-  set('chart',chart(d.series||[]));
+  set('chart',chart(d.series||[],'saved','ga','#46d39a','cumulative tokens saved'));
+  set('chart-usd',chart(d.series||[],'usd','gu','#6ea8fe','cumulative $ saved',v=>'$'+(v>=1000?Math.round(v).toLocaleString():v.toFixed(2))));
   const lever=(icon,t,v,x,c)=>`<div class="mini"><div class="t">${icon} ${t}</div><div class="b ${c||''}">${v}</div><div class="x">${x}</div></div>`;
   set('levers',
     lever('✍','Shorter prompts'+H('lvIn'),usd(inUSD),`${k(d.tokens_saved||0)} input tokens · small lever`,inUSD>0?'green':'')+
