@@ -11,6 +11,9 @@ What it does
 * Reads actual output tokens from the API response
 * Computes token savings per prompt and overall percentage reduction
 
+<img width="544" height="305" alt="image" src="https://github.com/user-attachments/assets/441c9027-29fa-4674-aa47-bd4168f4e096" />
+
+
 Key idea
 
 It performs a true same-prompt A/B test:
