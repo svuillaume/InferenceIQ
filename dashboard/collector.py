@@ -548,6 +548,10 @@ PAGE = r"""<!DOCTYPE html>
   <div class="panel full"><h2>Model cost comparison <span class="hint">5 devs Claude Code · Opus 4.8 vs Sonnet 4.6 vs Haiku 4.5 · baseline → with InferenceIQ</span>
       <span class="help" data-help="<b>Model cost comparison</b> — monthly Claude Code spend per team size on each model tier, baseline (strike-through) → with InferenceIQ. Same per-dev token volume (~45M in / 2.5M out per dev/mo); only the model price changes. Choosing a cheaper tier AND running InferenceIQ compound.">i</span></h2>
     <div id="roi-models"></div></div>
+  <div class="panel full"><h2>Subscription plans vs API rates <span class="hint">Pro · Max 5x · Max 20x allowance priced at Opus/Sonnet/Haiku API rates → with InferenceIQ</span>
+      <span class="help" data-help="<b>Subscription plans vs API rates</b> — what each plan's monthly token allowance would cost if billed at API rates per model tier (strike-through), then −reduction% with InferenceIQ.<br><span class='f'>allowance = 5-hour window cap × ~44 windows/mo (Pro 17.6k · Max 5x 88k · Max 20x 220k per window); priced input-heavy (~45M in / 2.5M out ratio); reduction = concise + cache + routing + prompt-caching</span>">i</span></h2>
+    <div id="roi-plans"></div>
+    <div class="x" style="margin-top:10px;color:var(--dim);font-size:.72rem">Plan prices: Pro $20 · Max 5x $100 · Max 20x $200 /mo. Allowance from the 5-hour rolling window cap × ~44 usable windows/mo; a flat plan is one shared bucket, so the model tiers show what that usage would cost at API rates.</div></div>
 </section>
 
 <section class="page" data-p="activity">
@@ -696,6 +700,18 @@ function renderROI(o){
         const cost=(IN_DEV*pr.in+OUT_DEV*pr.out)/1e6*n, opt=cost*(1-rc.red);
         return `<td><span class="c" style="text-decoration:line-through">${usd(cost)}</span> <b class="green">${usd(opt)}</b><div class="x">save ${usd(cost-opt)}/mo · ${usd((cost-opt)*12)}/yr</div></td>`;
       }).join('')+`</tr>`;}).join('')+`</tbody></table>`);
+
+  // subscription plans priced at API rates → with InferenceIQ. A flat plan is one shared,
+  // model-agnostic bucket; the tiers show what that bucket's tokens would cost at API rates.
+  const inF=IN_DEV/(IN_DEV+OUT_DEV), outF=OUT_DEV/(IN_DEV+OUT_DEV);     // input-heavy coding split
+  const WPM=44;                                                         // ~usable 5h windows / month
+  const PLANS=[['Pro',20,17.6e3*WPM],['Max 5x',100,88e3*WPM],['Max 20x',200,220e3*WPM]]; // [name,$/mo,allowance tok/mo]
+  set('roi-plans',`<table><thead><tr><th>Plan</th><th>Allowance</th>`+tiers.map(t=>`<th>${t[1]} @ API</th>`).join('')+`</tr></thead><tbody>`+
+    PLANS.map(([nm,price,allow])=>`<tr><td><b>${nm}</b> <span class="c">$${price}/mo</span></td><td class="c">${k(allow)}/mo</td>`+
+      tiers.map(([id])=>{const pr=(LASTP&&LASTP[id])||{in:5,out:25};
+        const cost=allow*(inF*pr.in+outF*pr.out)/1e6, opt=cost*(1-c.red);
+        return `<td><span class="c" style="text-decoration:line-through">${usd(cost)}</span> <b class="green">${usd(opt)}</b><div class="x">save ${usd(cost-opt)}/mo · ${usd((cost-opt)*12)}/yr</div></td>`;
+      }).join('')+`</tr>`).join('')+`</tbody></table>`);
 }
 
 let LASTO={}, LASTP={};
