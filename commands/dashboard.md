@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 # Configure the InferenceIQ dashboard target
 
-Point this machine's InferenceIQ reporting (the `UserPromptSubmit` hook and the `optimize`/`recommend` CLIs) at a specific dashboard collector — e.g. one running on AWS.
+Point this machine's InferenceIQ reporting (the `UserPromptSubmit` hook and the `optimize` CLI) at a specific dashboard collector — e.g. one running on AWS.
 
 **Dashboard URL:** `$1`
 **Token (optional):** `$2`

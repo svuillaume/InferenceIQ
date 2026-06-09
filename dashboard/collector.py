@@ -2,7 +2,7 @@
 InferenceIQ — dashboard collector (standalone)
 
 A pure monitoring service. It does NOT optimize anything itself and imports nothing
-from the rest of the repo — every other surface (CLI optimize/recommend, the Claude Code
+from the rest of the repo — every other surface (CLI optimize, the Claude Code
 hook, the intercept proxy) POSTs its results to `/api/record`, and this page shows the
 aggregate. Self-contained → deployable on a remote box, collecting from many machines.
 

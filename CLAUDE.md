@@ -13,11 +13,8 @@ live dashboard. It has **one shared core** and **four thin surfaces** around it:
     filler / swap verbose phrases / tidy whitespace). Also exact token counting via Anthropic's
     `count_tokens`, the shared `est()` estimate, and the stdlib `report()` that POSTs each run to
     the dashboard (tagged with this machine's `host`/`user`). It's also a CLI.
-  - `recommend.py` — a Claude-powered best-practice prompt rewriter (Anthropic SDK, Opus 4.8,
-    structured outputs). CLI only. Returns a rewritten prompt + plain-English techniques +
-    per-prompt token tips + a suggested model.
 - **Surfaces (the "doers")**
-  - **CLI** — `./optimize.py "…"` and `./recommend.py "…"`.
+  - **CLI** — `./optimize.py "…"`.
   - **Claude Code hook** — `.claude/hooks/optimize_prompt.py`, a `UserPromptSubmit` hook. Single
     auto mode: injects a tighter equivalent phrasing **and** a brevity directive as
     `additionalContext` (it cannot replace typed text, so the input cut is advisory/measured; the
@@ -46,9 +43,8 @@ docker compose up -d --build
 # Standalone collector only (e.g. deploy on a remote host):
 cd dashboard && uvicorn collector:app --host 0.0.0.0 --port 8088
 
-# CLI (local; exact counts + recommend need ANTHROPIC_API_KEY):
+# CLI (local; exact counts need ANTHROPIC_API_KEY):
 ./optimize.py "Hey could you please just clean this up?"
-ANTHROPIC_API_KEY=sk-ant-... ./recommend.py "fix the bug"
 
 # Drive Claude Code through the proxy:
 ./iq                                      # or: ANTHROPIC_BASE_URL=http://localhost:8082 claude
@@ -94,7 +90,6 @@ and mutating arbitrary turns. Do not reintroduce any of that. "Safe for Claude C
 
 ```
 optimize.py                        mechanical core + CLI; est(); host-tagged report() (privacy-gated)
-recommend.py                       Claude best-practice rewriter (SDK, Opus 4.8) — CLI only; reports too
 router.py                          deterministic intent → model routing (Haiku/Sonnet/Opus); no API call
 semcache.py                        3-layer semantic cache (exact + fastembed vector + LLM fallback); non-agentic only
 intercept.py                       ⚡ Auto proxy (:8082): cache + optimize + CONCISE + model routing
