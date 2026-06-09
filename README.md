@@ -14,7 +14,7 @@ and shows the savings on a live dashboard (UI brand: **FortiInferenceIQ**).
 You apply it two ways: a **Claude Code hook/plugin** (works on any login, incl. Pro/Max OAuth) and an
 in-path **proxy** (API-key only; measures real output savings). It never breaks Claude Code's tool loop.
 
-Archicture - Mode
+# Archicture - Mode
 
 <img width="1780" height="900" alt="image" src="https://github.com/user-attachments/assets/cba25f8a-b392-4382-ac2f-a7bec44685da" />
 
