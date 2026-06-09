@@ -529,7 +529,7 @@ function prodGauge(mult,prodPct){
     <path d="M20,114 A90,90 0 0 1 200,114" fill="none" stroke="#101826" stroke-width="16" stroke-linecap="round"/>
     <path d="M20,114 A90,90 0 0 1 200,114" fill="none" stroke="url(#pg)" stroke-width="16" stroke-linecap="round" pathLength="100" stroke-dasharray="${len} 100"/>
     <text x="110" y="92" text-anchor="middle" font-size="40" font-weight="800" fill="#eef3fa">×${mult.toFixed(2)}</text>
-    <text x="110" y="120" text-anchor="middle" font-size="14" fill="#2fd6a6" font-weight="700">+${prodPct}% throughput</text>
+    <text x="110" y="120" text-anchor="middle" font-size="13" fill="#2fd6a6" font-weight="700">+${prodPct}% Productivity Gain</text>
     <text x="16" y="130" font-size="10" fill="#4d596b">1×</text><text x="196" y="130" font-size="10" fill="#4d596b">2×</text>
   </svg>`;
 }
