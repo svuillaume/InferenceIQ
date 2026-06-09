@@ -347,7 +347,95 @@ async def api_reset(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
+    return SIMPLE_PAGE
+
+
+@app.get("/full", response_class=HTMLResponse)
+async def full():
     return PAGE
+
+
+SIMPLE_PAGE = r"""<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InferenceIQ · tokens saved</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#0a0e14;--card:#141a23;--card2:#181f2a;--line:#222b38;--fg:#e8edf4;
+    --muted:#8a97a8;--dim:#5b6675;--accent:#6ea8fe;--green:#46d39a;--amber:#f0b84e;--red:#f0686d}
+  body{font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    background:radial-gradient(1100px 560px at 82% -12%,#16202e 0%,var(--bg) 55%);color:var(--fg);
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:40px clamp(16px,5vw,60px);-webkit-font-smoothing:antialiased}
+  .logo{font-size:1.3rem;font-weight:800;letter-spacing:-.02em;margin-bottom:6px;
+    background:linear-gradient(90deg,var(--accent),#a98bfa);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:.85rem;margin-bottom:34px;text-align:center}
+  .sub a{color:var(--accent);text-decoration:none}
+  .hero{text-align:center;margin-bottom:40px}
+  .hero .lbl{font-size:.74rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
+  .hero .big{font-size:clamp(3rem,11vw,6rem);font-weight:800;letter-spacing:-.03em;line-height:1;color:var(--green);margin:8px 0 6px}
+  .hero .pct{font-size:1.1rem;color:var(--fg)}
+  .cmp{display:grid;grid-template-columns:1fr 1fr;gap:18px;width:100%;max-width:760px}
+  .col{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);
+    border-radius:16px;padding:24px 22px;text-align:center}
+  .col.off{border-color:#f0686d44}.col.on{border-color:#46d39a55;box-shadow:0 0 0 1px #46d39a22}
+  .col .h{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:12px}
+  .col .n{font-size:2.4rem;font-weight:800;letter-spacing:-.02em;line-height:1}
+  .col.off .n{color:var(--amber)}.col.on .n{color:var(--green)}
+  .col .u{font-size:.78rem;color:var(--dim);margin-top:8px}
+  .barwrap{width:100%;max-width:760px;margin-top:18px}
+  .bar{height:30px;border-radius:8px;background:var(--line);overflow:hidden;display:flex}
+  .bar>i{display:block;height:100%}
+  .bar .keep{background:linear-gradient(90deg,#2a9c68,var(--green))}
+  .bar .cut{background:repeating-linear-gradient(45deg,#3a2630,#3a2630 6px,#46202a 6px,#46202a 12px)}
+  .legend{display:flex;justify-content:space-between;font-size:.74rem;color:var(--muted);margin-top:8px}
+  .foot{color:var(--dim);font-size:.76rem;margin-top:30px;text-align:center;max-width:620px;line-height:1.6}
+  .empty{color:var(--amber);font-size:1rem;text-align:center;max-width:560px;line-height:1.6}
+</style></head><body>
+  <div class="logo">⚡ InferenceIQ</div>
+  <div class="sub">Response tokens received — <b>CONCISE=0</b> (without) vs <b>CONCISE=1</b> (with) · <a href="/full">full dashboard →</a></div>
+  <div id="app" class="empty">Collecting…</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const fmt=n=>Math.round(n).toLocaleString();
+async function tick(){
+  let d;try{d=await(await fetch('/api/stats')).json()}catch{return}
+  const o=d.output||{};
+  const na=o.normal_avg||0, ca=o.concise_avg||0, cn=o.concise_n||0, nn=o.normal_n||0;
+  const pct=o.pct_shorter||0;
+  if(!(na>0&&ca>0&&cn>0)){
+    $('app').className='empty';
+    $('app').innerHTML=`Need replies in <b>both</b> buckets to compare.<br>`+
+      `Have ${cn} with CONCISE=1 and ${nn} with CONCISE=0.<br>`+
+      `<span style="color:var(--dim);font-size:.85rem">Send some prompts through the proxy with reply-trimming on, and some with it off.</span>`;
+    return;
+  }
+  // Apples-to-apples over the SAME number of concise replies served.
+  const withoutTot=na*cn, withTot=ca*cn, saved=Math.max(0,withoutTot-withTot);
+  const keepPct=Math.max(2,Math.round(withTot/withoutTot*100)), cutPct=100-keepPct;
+  $('app').className='';
+  $('app').innerHTML=`
+    <div class="hero">
+      <div class="lbl">Total response tokens saved</div>
+      <div class="big">${fmt(saved)}</div>
+      <div class="pct"><b class="" style="color:var(--green)">${pct}% shorter</b> replies · over ${fmt(cn)} answers</div>
+    </div>
+    <div class="cmp">
+      <div class="col off"><div class="h">Without · CONCISE=0</div><div class="n">${fmt(withoutTot)}</div><div class="u">${fmt(na)} tokens/reply avg</div></div>
+      <div class="col on"><div class="h">With InferenceIQ · CONCISE=1</div><div class="n">${fmt(withTot)}</div><div class="u">${fmt(ca)} tokens/reply avg</div></div>
+    </div>
+    <div class="barwrap">
+      <div class="bar"><i class="keep" style="width:${keepPct}%"></i><i class="cut" style="width:${cutPct}%"></i></div>
+      <div class="legend"><span>kept ${keepPct}%</span><span>saved ${cutPct}%</span></div>
+    </div>
+    <div class="foot">Measured from Anthropic's real <code>output_tokens</code>: the average reply with reply-trimming
+      <b>on</b> (${fmt(ca)}) vs <b>off</b> (${fmt(na)}), applied to the ${fmt(cn)} trimmed replies served.
+      Sample: ${fmt(cn)} concise · ${fmt(nn)} normal.</div>`;
+}
+tick();setInterval(tick,2000);
+</script>
+</body></html>"""
 
 
 PAGE = r"""<!DOCTYPE html>
