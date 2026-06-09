@@ -2,7 +2,7 @@
 
 Make prompts **cheaper to send**, replies **cheaper to receive**, and both **better at getting
 good answers** — without changing what they mean. InferenceIQ shortens chatty prompt text,
-rewrites prompts to best practices, can trim the model's reply, and tells you how to cut tokens.
+can trim the model's reply, and tells you how to cut tokens.
 
 It has **one shared core** and a few thin surfaces around it. Three of them *do* something to your
 prompts — a **CLI**, a **Claude Code hook**, and an in-path **proxy** — and they all report into
@@ -12,7 +12,7 @@ prompts — a **CLI**, a **Claude Code hook**, and an in-path **proxy** — and 
 ```
    reporters (the "doers")                          monitor (view-only)
    ────────────────────────                         ───────────────────
-   CLI        optimize.py / recommend.py  ─┐
+   CLI        optimize.py                 ─┐
    Hook       .claude/hooks/optimize_*.py  ─┼──►  POST /api/record  ──►  dashboard/collector.py
    Proxy      intercept.py  (:8082)        ─┘        (host-tagged)            (:8088)
                                                                           ▲ deploy anywhere;
@@ -27,7 +27,7 @@ API end — output tokens cost ~5× input and usually dominate the bill.
 ## Table of contents
 1. [Why this exists](#why-this-exists)
 2. [Techniques used](#techniques-used)
-3. [The two engines](#the-two-engines)
+3. [The engine](#the-engine)
 4. [The surfaces — how you use it](#the-surfaces--how-you-use-it)
 5. [Components — what each does and why](#components)
 6. [Architecture](#architecture)
@@ -61,16 +61,15 @@ saving is measured**. Where possible it's **real** (from Anthropic's `count_toke
 | # | Technique | What it does | Typical saving | Measured | Where | Needs proxy/API key |
 |---|---|---|---|---|---|---|
 | 1 | **Mechanical input trim** | Deterministic regex strips filler ("please", "just basically"), swaps verbose phrases ("in order to"→"to"), tidies whitespace — meaning-preserving. | small (filler only) | **exact** (`count_tokens`) | `optimize.py` (CLI · hook · proxy) | hook/CLI: no |
-| 2 | **Best-practice rewrite** | Claude rewrites the prompt to prompt-engineering best practices (clarity, scope, light structure) + advises model & tips. | varies; better answers too | **exact** (`count_tokens`) | `recommend.py` (CLI) | **yes (key)** |
-| 3 | **CONCISE output control** | Appends a brevity directive to the last user turn → shorter replies. The big lever (output ≈5× input). | 40–60% of the reply | **real** (`usage.output_tokens`) | proxy (`CONCISE`) + hook | output on-wire: **proxy/key**; hook directive: no |
-| 4 | **Intent model routing** | Deterministic keyword/length routing to Haiku / Sonnet / Opus (no extra API call). Agentic requests are never routed. | 30–40% | **real** — $ priced from the actual reply's input+output tokens × the price delta between the requested and served model | `router.py` (proxy) | **yes (key)** |
-| 5 | **Semantic response cache** | 3-layer: exact hash → fastembed vector (cosine) → LLM fallback. A hit returns the stored answer with **no upstream call**. Non-agentic, text-only only. | avoids whole calls | hit-rate + calls-avoided | `semcache.py` (proxy) | **yes (key)** |
-| 6 | **Prompt-cache preservation** | The proxy never mutates the cached prefix (system/tools/history), so Anthropic's prompt cache stays intact (~90% off cached tokens). | ~90% on cached tokens | **real** (`usage.cache_read_input_tokens`) | proxy invariant | **yes (key)** |
-| 7 | **Exact token counting** | `count_tokens` (model-specific) — never `tiktoken`. Powers the savings numbers, before vs after. | — (measurement) | n/a | `optimize.py` | key for exact counts |
-| 8 | **Host tagging + privacy gating** | Each report carries `host`/`user`; prompt text stays on-box by default (`IQ_REPORT_TEXT=0`). | — (observability) | n/a | all reporters → collector | no |
-| 9 | **Advisory tips** | Surfaces *when* RAG, chunking, AST summaries, command distillation, search-before-reading, and prompt-cache ordering would help (can't auto-apply in a transparent proxy). | 60–99% *(if you build them)* | — | `recommend.py` + roadmap | no |
+| 2 | **CONCISE output control** | Appends a brevity directive to the last user turn → shorter replies. The big lever (output ≈5× input). | 40–60% of the reply | **real** (`usage.output_tokens`) | proxy (`CONCISE`) + hook | output on-wire: **proxy/key**; hook directive: no |
+| 3 | **Intent model routing** | Deterministic keyword/length routing to Haiku / Sonnet / Opus (no extra API call). Agentic requests are never routed. | 30–40% | **real** — $ priced from the actual reply's input+output tokens × the price delta between the requested and served model | `router.py` (proxy) | **yes (key)** |
+| 4 | **Semantic response cache** | 3-layer: exact hash → fastembed vector (cosine) → LLM fallback. A hit returns the stored answer with **no upstream call**. Non-agentic, text-only only. | avoids whole calls | hit-rate + calls-avoided | `semcache.py` (proxy) | **yes (key)** |
+| 5 | **Prompt-cache preservation** | The proxy never mutates the cached prefix (system/tools/history), so Anthropic's prompt cache stays intact (~90% off cached tokens). | ~90% on cached tokens | **real** (`usage.cache_read_input_tokens`) | proxy invariant | **yes (key)** |
+| 6 | **Exact token counting** | `count_tokens` (model-specific) — never `tiktoken`. Powers the savings numbers, before vs after. | — (measurement) | n/a | `optimize.py` | key for exact counts |
+| 7 | **Host tagging + privacy gating** | Each report carries `host`/`user`; prompt text stays on-box by default (`IQ_REPORT_TEXT=0`). | — (observability) | n/a | all reporters → collector | no |
+| 8 | **Advisory tips** | Surfaces *when* RAG, chunking, AST summaries, command distillation, search-before-reading, and prompt-cache ordering would help (can't auto-apply in a transparent proxy). | 60–99% *(if you build them)* | — | hook + roadmap | no |
 
-**Measured with Anthropic's real data** (techniques 1–3, 6–7): exact `count_tokens` and the response
+**Measured with Anthropic's real data** (techniques 1–2, 5–6): exact `count_tokens` and the response
 `usage` object (`input_tokens` / `output_tokens` / `cache_read_input_tokens` /
 `cache_creation_input_tokens`). The dashboard's *Prompt-cache saved* and *Reply reduction* numbers are
 real, not modeled. The **ROI** tab leads with a **live projection** — the real $ saved so far,
@@ -81,16 +80,14 @@ tool-wrapper-only, with Anthropic doc references.
 
 ---
 
-## The two engines
+## The engine
 
 | Engine | File | What it does | Cost | Determinism |
 |---|---|---|---|---|
 | **Mechanical** | `optimize.py` | Regex rules that drop filler ("please", "just basically"), swap verbose phrases ("in order to"→"to"), collapse whitespace — **meaning-preserving**, conservative. | Free, offline, instant | 100% deterministic |
-| **Best-practice (LLM)** | `recommend.py` | Sends the prompt to **Claude Opus 4.8** with a prompt-engineering system prompt; returns a rewritten prompt + plain-English techniques + applicable token tips + a suggested model. | 1 API call | Model-driven |
 
-**Why two?** Mechanical is safe, free, and predictable but only trims obvious filler. The LLM
-engine can restructure, clarify, compress with symbols/abbreviations, and advise — but costs a
-call and needs a key. Use the cheap one by default, the smart one when it's worth it.
+Mechanical is safe, free, and predictable — it trims obvious filler without ever changing meaning.
+It's the shared core: the CLI, the hook, and the proxy all run the same `optimize.py` rules.
 
 ---
 
@@ -100,7 +97,7 @@ Three surfaces *act* on prompts; the dashboard only *watches*.
 
 | # | Surface | Kind | Who it's for | What happens | Where |
 |---|---|---|---|---|---|
-| **1** | **CLI** (`optimize.py` / `recommend.py`) | 🙋 you run it | Terminal / scripting | Shorten or rewrite from the shell; prints before/after + savings; reports to the dashboard | `./optimize.py "…"` |
+| **1** | **CLI** (`optimize.py`) | 🙋 you run it | Terminal / scripting | Shorten from the shell; prints before/after + savings; reports to the dashboard | `./optimize.py "…"` |
 | **2** | **Claude Code hook** | ⚡ automatic | Inside Claude Code | On submit, injects a tighter equivalent phrasing **and** a brevity directive as context (no confirmation, never blocks) | every CC session |
 | **3** | **Intercept proxy** | ⚡ automatic | Terminal `claude` / any API client | Rewrites the **last user turn** on the wire, and (default `CONCISE=1`) trims the reply | `ANTHROPIC_BASE_URL=http://localhost:8082` |
 | **4** | **Dashboard** | 👁 view-only | Anyone watching cost | A live page of savings across all sources and machines. View-only — **no prompt input**; the only controls are Settings (refresh/theme/timezone + a **Reset counters** button), a model-price selector, and the team-ROI view | `http://3.96.147.26:8088` |
@@ -130,18 +127,6 @@ fully automatic on the wire (and reply-trimming) → **3** · just watching the 
   ./optimize.py --batch prompts.txt --out optimized.txt    # many prompts → totals + file
   #   batch file: prompts separated by a line of ---, or one per line
   ```
-
-### `recommend.py` — the Claude best-practice rewriter (CLI)
-- **What:** one consolidated system prompt encoding Anthropic's prompt-engineering best practices
-  (clarity & structure, light XML, role), balanced compression (abbreviations / `key:value` /
-  symbols — never cryptic), hard rules (don't invent, preserve intent, stay token-efficient), a
-  per-prompt token-optimization checklist, and model routing. Uses the official Anthropic SDK with
-  **structured outputs** (JSON schema) on **Opus 4.8**, pinned to `api.anthropic.com`.
-- **Returns:** `rewritten`, `techniques` (plain English), `token_tips` (only the ones that apply to
-  *this* prompt), `suggested_model` (haiku/sonnet/opus), `rationale`.
-- **Why:** improves both **token usage and answer quality** — a clearer, well-scoped prompt gets a
-  better answer. **Limits:** costs an API call + latency; worth it for prompts you'll reuse.
-- **CLI:** `ANTHROPIC_API_KEY=sk-ant-... ./recommend.py "your prompt"`
 
 ### `intercept.py` — the optimizing proxy (the ⚡ Auto surface, :8082)
 - **What:** a reverse proxy. On every `POST /v1/messages` it optimizes **only the last user turn**
@@ -212,7 +197,7 @@ fully automatic on the wire (and reply-trimming) → **3** · just watching the 
    ┌──────────────────────── CLIENTS ────────────────────────┐
    │                                                          │
    │  Claude Code (hook)      CLI                API client   │
-   │  optimize_prompt.py   optimize/recommend   (curl/SDK)    │
+   │  optimize_prompt.py      optimize.py       (curl/SDK)    │
    │        │                    │                   │        │
    │   adds context         prints + reports    ANTHROPIC_BASE_URL
    │   (no proxy)            (no proxy)              │        │
@@ -298,7 +283,7 @@ through a catch-all passthrough — no mutation.
 | **Proxy** | root `Dockerfile` (:8082) | `intercept` + `optimize` + `router` + `semcache` + fastembed/numpy | API key (for real traffic); volumes for model + cache store |
 | **Dashboard** | `dashboard/Dockerfile` (:8088) | `collector` only (fastapi/uvicorn/tzdata) | nothing — deploy anywhere, collect from many hosts |
 | **Hook** | pure-stdlib script | `optimize_prompt.py` → imports `optimize` | any `python3`; no key, works on OAuth |
-| **CLI** | local venv | `optimize.py` / `recommend.py` | key only for exact counts / `recommend` |
+| **CLI** | local venv | `optimize.py` | key only for exact counts |
 
 > Which features need the proxy (and therefore an **API key**, since Pro/Max OAuth bypasses it) is
 > documented in **[roadmap.md](roadmap.md)**.
@@ -337,14 +322,13 @@ Then:
 
 ### B) CLI only — no Docker
 
-**Plain English:** shorten or rewrite a single prompt from the terminal. Free and offline for
-`optimize`; `recommend` calls Claude and needs a key.
+**Plain English:** shorten a single prompt from the terminal. Free and offline for `optimize`
+(a key only buys *exact* token counts instead of estimates).
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt   # first time only
 
 ./optimize.py "Hey could you please just clean this up?"             # mechanical, free, offline
-ANTHROPIC_API_KEY=sk-ant-... ./recommend.py "fix the bug"            # Claude best-practice rewrite
 ```
 *(If a dashboard from **A** or **C** is running, these auto-report to it — no extra flags.)*
 
@@ -534,7 +518,7 @@ big lever (shorter replies, from each response's real token usage):
 
 ### Do I need an API key?
 
-The proxy forwards to `api.anthropic.com`, so it (and `recommend`, and exact token counts) needs an
+The proxy forwards to `api.anthropic.com`, so it (and exact token counts) needs an
 **API-key** login. **A Pro/Max subscription (OAuth) ignores `ANTHROPIC_BASE_URL`** — its traffic
 never reaches the proxy. So on a subscription, or with no key at all, use the **hook** (it's
 pure-stdlib, needs no key, runs on OAuth):
@@ -543,7 +527,6 @@ pure-stdlib, needs no key, runs on OAuth):
 |---|---|---|
 | **Hook / plugin** (`UserPromptSubmit`) | **No** — works on OAuth/subscription | input trim per prompt + injects the brevity directive (output shrinks but is *not counted* here) |
 | **CLI `optimize.py`** | No (key only for *exact* counts; else estimates) | input trim |
-| **CLI `recommend.py`** | **Yes** | best-practice rewrite |
 | **Proxy `intercept.py` / `./iq`** | **Yes** (and OAuth bypasses it) | real output-token savings, routing, cache |
 
 **Bottom line without a key:** the **plugin/hook is your path** — it reports input savings to your
@@ -556,7 +539,7 @@ through the proxy with an API key).
 
 | Where | Variable | Effect |
 |---|---|---|
-| CLI / recommend | `ANTHROPIC_API_KEY` | enables exact token counts + the `recommend` rewrite |
+| CLI | `ANTHROPIC_API_KEY` | enables exact token counts |
 | hook | `CONCISE_NOTE` | override the injected brevity directive |
 | hook | `OPTIMIZER_DIR` | where `optimize.py` lives (default: this repo, auto-detected) |
 | proxy | `OPTIMIZE_ENABLED` | `0` to make the proxy a pure passthrough |
@@ -608,13 +591,12 @@ through the proxy with an API key).
 
 ## Benefits, limits, and trade-offs
 
-| | Mechanical (`optimize`) | Best-practice (`recommend`) |
-|---|---|---|
-| Cost | free / offline | 1 API call |
-| Saves tokens on the input | yes (filler only) | yes, usually — and improves quality |
-| Improves answer quality | no | yes (clarity, structure, scope) |
-| Deterministic | yes | no |
-| Needs a key | no (estimates) | yes |
+| | Mechanical (`optimize`) |
+|---|---|
+| Cost | free / offline |
+| Saves tokens on the input | yes (filler only) |
+| Deterministic | yes |
+| Needs a key | no (estimates) |
 
 **Input vs output — where the money is.** Shortening *your* prompt is a small win (your new prose
 is a tiny slice of the request, and the cached prefix dominates Claude Code's input cost, already
@@ -625,7 +607,6 @@ any input trim. That's why the **`CONCISE`** lever (proxy) matters most — and 
 | Lever | Surface | Typical effect | Risk |
 |---|---|---|---|
 | Shorten the prompt | all | small (filler only) | none — meaning-preserving |
-| Improve the prompt | `recommend` | better answers, often fewer tokens | needs a key + a call |
 | **Shorten the reply** | proxy `CONCISE=1` | **large** (cheaper output tokens) | behavioral, measured on the dashboard |
 | **Route to a cheaper model** | proxy `ROUTE_MODELS=on` | **large** (same tokens, lower price/token) | never routes agentic traffic; priced from real tokens on the dashboard |
 
@@ -638,7 +619,6 @@ help; building it for real needs your actual data/app.
 
 ```
 optimize.py                        mechanical core + CLI; est(); host-tagged, privacy-gated report()
-recommend.py                       Claude best-practice rewriter (SDK, Opus 4.8) — CLI only; reports too
 router.py                          deterministic intent → model routing (Haiku/Sonnet/Opus), no API call
 semcache.py                        3-layer semantic cache (exact + fastembed vector + LLM fallback); non-agentic only
 intercept.py                       ⚡ Auto proxy (:8082): cache + optimize + CONCISE + routing; /dashboard → :8088

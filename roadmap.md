@@ -13,7 +13,7 @@ never reaches the proxy. Routing through the proxy therefore requires **API-key 
 | Surface | Needs proxy? | Needs API key? | Works on Pro/Max OAuth? |
 |---|---|---|---|
 | **Claude Code hook** (input advice + CONCISE output) | ❌ | ❌ | ✅ yes — the only in-session lever on a subscription |
-| **CLI** (`optimize.py`, `recommend.py`) | ❌ | only for exact counts / `recommend` | ✅ yes |
+| **CLI** (`optimize.py`) | ❌ | only for exact counts | ✅ yes |
 | **Proxy** (on-the-wire rewrite, cache, routing, `max_tokens`) | ✅ | ✅ **yes** | ❌ no (OAuth bypasses the proxy) |
 
 > **Rule of thumb:** anything that changes bytes *on the wire* (cache hits, model override,
@@ -39,7 +39,7 @@ never reaches the proxy. Routing through the proxy therefore requires **API-key 
 |---|---|---|---|
 | ⚠️ `max_tokens` cap | caps runaway output | **proxy/key** | Opt-in `MAX_TOKENS_CAP`, **non-agentic only** (capping agentic requests could truncate tool turns) |
 | ⚠️ Stronger "agent" CONCISE preset | 60–80% output | hook (no key) + proxy | `CONCISE_NOTE` = "data only · PASS/FAIL not full logs · JSON errors only" |
-| 📋 Expand advisory tips | — | none (advice) | Add to `recommend.py` + hook: AST summaries, search-before-reading, command distillation, byte-range reads, prompt-cache prefix ordering |
+| 📋 Expand advisory tips | — | none (advice) | Add to the hook: AST summaries, search-before-reading, command distillation, byte-range reads, prompt-cache prefix ordering |
 
 ## 3. Needs a separate tool-wrapper (NOT the proxy)
 These act on `tool_result` (file contents, command output) or the `system` prompt. A transparent
@@ -55,7 +55,7 @@ calls *before* content enters the context — a future opt-in component, no API 
 ## 4. Advisory only (need your data/app)
 | Technique | Expected | Notes |
 |---|---|---|
-| 📋 RAG / retrieve relevant chunks | 60–80% | Surfaced by `recommend.py`; building it needs your corpus |
+| 📋 RAG / retrieve relevant chunks | 60–80% | Advisory; building it needs your corpus |
 | 📋 Chunking / byte-range reads | varies | Advisory |
 | 📋 Prompt-cache prefix ordering | discounted | Put static context first, dynamic query last |
 
