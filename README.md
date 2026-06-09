@@ -176,6 +176,13 @@ fully automatic on the wire (and reply-trimming) → **3** · just watching the 
 - **Endpoints:** `POST /api/record` (ingest — `kind` ∈ opt · rec · out · route · cache · cachestat
   · mode), `GET /api/stats`, `POST /api/reset` (zero all counters), `POST /api/tz` (set feed
   timezone), `GET /`.
+- **Reset the counters from the CLI** (same as the Settings → ↺ Reset button) — zeroes every
+  counter, chart, and feed across all sources/machines, and clears the persisted store so the
+  reset survives a restart:
+  ```bash
+  curl -XPOST http://3.96.147.26:8088/api/reset
+  #   token-protected collector: add  -H "X-IQ-Token: <IQ_TOKEN>"
+  ```
 
 ### Container files
 - **`proxy/Dockerfile`** — the **proxy** image: installs `proxy/requirements-proxy.txt`
