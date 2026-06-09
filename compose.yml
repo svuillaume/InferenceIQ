@@ -25,6 +25,8 @@ services:
       - IQ_REPORT_TEXT=${IQ_REPORT_TEXT:-0}
       # Send this token to a token-protected collector (must match the dashboard's IQ_TOKEN).
       - IQ_TOKEN=${IQ_TOKEN:-}
+      # Report as the host machine (not the container id) so proxy + hook share one host row.
+      - IQ_HOST=${IQ_HOST:-}
       # Semantic cache (3-layer). On by default; non-agentic text-only traffic only.
       - CACHE_ENABLED=${CACHE_ENABLED:-1}
       - CACHE_INDEX=${CACHE_INDEX:-numpy}      # numpy (default) | hnsw | faiss

@@ -492,6 +492,7 @@ PAGE = r"""<!DOCTYPE html>
 </nav>
 
 <section class="page on" data-p="overview">
+  <div class="panel full" id="brevity-hero" style="margin-bottom:16px;padding:26px 22px"></div>
   <div class="panel full" style="margin-bottom:16px">
     <h2>Savings accumulating <span class="hint">cumulative tokens saved over time</span>
       <span class="help" data-help="<b>Savings accumulating</b> — watch total tokens saved climb.<br><span class='f'>cumulative (input tokens saved + estimated output tokens saved), sampled ~3s</span>">i</span></h2>
@@ -730,6 +731,21 @@ async function tick(){
     kpi(o.concise_n?(o.pct_shorter||0)+'%':'—','Reply reduction'+H('reply'),'shorter answers (the big lever)',o.pct_shorter>0?'green':'amber')+
     kpi(usd(cacheUSD),'Prompt-cache saved'+H('cachek'),'real, from Anthropic usage',cacheUSD>0?'violet':'')
   );
+
+  // BREVITY HERO — the lever IQ actually controls; output trimmed at 5× price (the jackpot)
+  const ps=o.pct_shorter||0, na=o.normal_avg||0, ca=o.concise_avg||0, cn=o.concise_n||0;
+  const have=cn>0&&na>0;
+  const bBody=have
+    ?`<div class="green" style="font-size:3.4rem;font-weight:800;letter-spacing:-.03em;line-height:1.04;margin:6px 0 2px">${ps}% <span style="font-size:1.25rem;color:var(--muted);font-weight:600">shorter replies</span></div>
+       <div style="font-size:.95rem;color:var(--fg)">${na.toLocaleString()} → <b class="green">${ca.toLocaleString()}</b> tokens/reply · <b>${k(o.out_tokens_saved||0)}</b> output tokens saved = <b class="green">${usd(outUSD)}</b> <span class="c">(output is ~5× input price)</span></div>
+       <div class="three" style="margin-top:16px">
+         <div class="mini"><div class="t">Output tokens saved</div><div class="b green">${k(o.out_tokens_saved||0)}</div><div class="x">over ${cn.toLocaleString()} concise replies</div></div>
+         <div class="mini"><div class="t">$ from shorter replies</div><div class="b green">${usd(outUSD)}</div><div class="x">priced at the selected model</div></div>
+         <div class="mini"><div class="t">Avg reply length</div><div class="b">${ca.toLocaleString()}<span class="c" style="font-size:.9rem"> vs ${na.toLocaleString()}</span></div><div class="x">concise vs normal</div></div>
+       </div>`
+    :`<div class="green" style="font-size:2.2rem;font-weight:800;margin:6px 0 2px">Brevity engine ready</div>
+      <div class="empty" style="font-size:.9rem">Need replies in BOTH buckets to measure: send prompts with concise mode on (proxy <code>CONCISE=1</code> or the hook) and some without. ${cn?`Have ${cn} concise, ${o.normal_n||0} normal.`:''}</div>`;
+  set('brevity-hero',`<div style="font-size:.74rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">💬 Output trimming · the lever InferenceIQ controls${H('reply')}</div>`+bBody);
 
   // OVERVIEW: chart + where savings come from (3 levers incl. real cache)
   set('chart',chart(d.series||[]));

@@ -43,7 +43,9 @@ def est(t: str) -> int:
 # Machine identity attached to every dashboard report, so one central (possibly remote)
 # collector can break savings down per host. Best-effort, stdlib-only, never fatal.
 try:
-    HOST = socket.gethostname()
+    # IQ_HOST wins so a containerized proxy can report the real machine name (not the
+    # container id) and share one host tag with the host-run hook/CLI.
+    HOST = os.getenv("IQ_HOST") or socket.gethostname()
 except Exception:
     HOST = "unknown"
 try:
@@ -98,6 +100,31 @@ RULES = [
     (_w(r"please"),                       "", "drop 'please'"),
     (_w(r"kindly"),                       "", "drop 'kindly'"),
 
+    # 2b. Politeness / gratitude — the most common no-information forms. Phrase-specific
+    # variants first so the generic 'thanks'/'thank you' don't shadow them.
+    (_w(r"thank you so much"),            "", "drop 'thank you so much'"),
+    (_w(r"thanks a lot"),                 "", "drop 'thanks a lot'"),
+    (_w(r"thanks a million"),             "", "drop 'thanks a million'"),
+    (_w(r"thanks in advance"),            "", "drop 'thanks in advance'"),
+    (_w(r"thank you in advance"),         "", "drop 'thank you in advance'"),
+    (_w(r"many thanks"),                  "", "drop 'many thanks'"),
+    (_w(r"thank you very much"),          "", "drop 'thank you very much'"),
+    (_w(r"thank you"),                    "", "drop 'thank you'"),
+    # 'thanks' but NOT 'thanks to X' (which means 'because of') — guard it.
+    (re.compile(r"\bthanks\b(?!\s+to\b)", re.I), "", "drop 'thanks'"),
+    (_w(r"thanx"),                        "", "drop 'thanx'"),
+    (_w(r"tyvm"),                         "", "drop 'tyvm'"),
+    (_w(r"thx"),                          "", "drop 'thx'"),
+    (_w(r"ty"),                           "", "drop 'ty'"),
+    (_w(r"much appreciated"),             "", "drop 'much appreciated'"),
+    (_w(r"I (really )?appreciate it"),    "", "drop 'I appreciate it'"),
+    (_w(r"appreciate it"),                "", "drop 'appreciate it'"),
+    (_w(r"no worries"),                   "", "drop 'no worries'"),
+    (_w(r"no problem"),                   "", "drop 'no problem'"),
+    (_w(r"sorry to bother you"),          "", "drop 'sorry to bother you'"),
+    (_w(r"sorry to bother"),              "", "drop 'sorry to bother'"),
+    (_w(r"sorry for bothering you"),      "", "drop 'sorry for bothering you'"),
+
     # 3. Hedge fillers — guarded so they only fire where they're genuinely filler
     (re.compile(r"^(basically|actually|honestly|essentially)[,\s]+", re.I), "",
         "drop sentence-initial hedge (basically/actually/…)"),
@@ -116,6 +143,7 @@ RULES = [
 
 # Cleanup applied after the rules above (fix artifacts left by removals)
 CLEANUP = [
+    (re.compile(r"([.!?])\s+([.!?])"), r"\1"),   # two spaced terminal marks (removal artifact) → first
     (re.compile(r"\s+([,.;:!?])"), r"\1"),       # space before punctuation
     (re.compile(r"([,;:])\1+"), r"\1"),          # doubled punctuation from removals
     (re.compile(r"[ \t]{2,}"), " "),             # collapse runs of spaces/tabs
